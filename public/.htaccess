@@ -1,0 +1,103 @@
+# ─── FitLife Web App — Apache / Hostinger .htaccess ──────────────────────────
+# Place this file in the root of the deployed web build folder.
+# Generated for Hostinger shared hosting (Apache 2.4+).
+
+Options -Indexes
+
+# ── SPA Routing ───────────────────────────────────────────────────────────────
+# All routes serve index.html so expo-router handles navigation in the browser.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Skip actual files and directories
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+
+  # Serve index.html for all routes
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# ── HTTPS Enforcement ─────────────────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# ── Security Headers ──────────────────────────────────────────────────────────
+<IfModule mod_headers.c>
+  # Prevent clickjacking
+  Header always set X-Frame-Options "SAMEORIGIN"
+
+  # Prevent MIME type sniffing
+  Header always set X-Content-Type-Options "nosniff"
+
+  # Enable XSS protection in older browsers
+  Header always set X-XSS-Protection "1; mode=block"
+
+  # Referrer policy — don't leak URLs to external domains
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+  # Permissions policy — restrict browser feature access
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+
+  # HTTP Strict Transport Security — enforce HTTPS for 1 year
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+
+  # Content Security Policy
+  # Allows: self, Supabase, Google OAuth, Facebook OAuth, YouTube embeds
+  # Blocks: inline scripts (XSS prevention), data URIs in scripts
+  Header always set Content-Security-Policy "\
+default-src 'self'; \
+script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://connect.facebook.net; \
+style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; \
+font-src 'self' https://fonts.gstatic.com; \
+img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://i.ytimg.com https://*.googleusercontent.com https://*.fbcdn.net; \
+frame-src 'self' https://www.youtube.com https://youtube.com https://accounts.google.com https://www.facebook.com; \
+connect-src 'self' https://*.supabase.co https://*.supabase.in https://api.openai.com https://api.nal.usda.gov https://www.googleapis.com wss://*.supabase.co; \
+media-src 'self' blob: https://*.supabase.co; \
+object-src 'none'; \
+base-uri 'self'; \
+form-action 'self' https://accounts.google.com https://www.facebook.com; \
+upgrade-insecure-requests"
+
+  # Remove server information (security through obscurity)
+  Header unset Server
+  Header unset X-Powered-By
+</IfModule>
+
+# ── Caching ───────────────────────────────────────────────────────────────────
+<IfModule mod_expires.c>
+  ExpiresActive On
+
+  # HTML — no cache (app updates need to reach users immediately)
+  <FilesMatch "\.html$">
+    ExpiresDefault "access plus 0 seconds"
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+  </FilesMatch>
+
+  # JS/CSS/fonts — cache for 1 year (content-hashed filenames)
+  <FilesMatch "\.(js|css|woff|woff2|ttf|eot)$">
+    ExpiresDefault "access plus 1 year"
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # Images — cache for 30 days
+  <FilesMatch "\.(png|jpg|jpeg|gif|webp|svg|ico)$">
+    ExpiresDefault "access plus 30 days"
+    Header set Cache-Control "public, max-age=2592000"
+  </FilesMatch>
+</IfModule>
+
+# ── Compression ───────────────────────────────────────────────────────────────
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/javascript application/javascript application/json
+</IfModule>
+
+# ── Block sensitive files ─────────────────────────────────────────────────────
+<FilesMatch "(\.env|\.env\..*|\.git|composer\.(json|lock)|package(-lock)?\.json)$">
+  Order allow,deny
+  Deny from all
+</FilesMatch>

@@ -1,30 +1,154 @@
 {
   "expo": {
-    "name": "fitness",
-    "slug": "fitness",
-    "version": "1.0.0",
+    "name": "FitLife",
+    "slug": "fitlife",
+    "version": "1.1.0",
+    "runtimeVersion": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "fitlife",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FFFFFF"
     },
+
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fitlife.app",
+      "buildNumber": "3",
+      "requireFullScreen": false,
+      "usesAppleSignIn": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "FitLife uses your camera for real-time posture correction during workouts.",
+        "NSCalendarsUsageDescription": "FitLife reads your calendar to find optimal workout windows.",
+        "NSMotionUsageDescription": "FitLife tracks your movement for fitness analytics.",
+        "NSHealthShareUsageDescription": "FitLife reads health data including sleep, heart rate and steps to personalise your training plan.",
+        "NSHealthUpdateUsageDescription": "FitLife writes workout and body measurement data to Apple Health.",
+        "NSFaceIDUsageDescription": "FitLife uses Face ID to securely unlock your fitness data.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["fitlife"],
+            "CFBundleURLName": "com.fitlife.app"
+          }
+        ]
+      },
+      "associatedDomains": ["applinks:fitlife.app"]
     },
+
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "package": "com.fitlife.app",
+      "versionCode": 3,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "fitlife.app", "pathPrefix": "/auth/callback" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "data": [
+            { "scheme": "fitlife" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ],
+      "permissions": [
+        "CAMERA",
+        "READ_CALENDAR",
+        "WRITE_CALENDAR",
+        "SCHEDULE_EXACT_ALARM",
+        "RECEIVE_BOOT_COMPLETED",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_CALENDAR",
+        "android.permission.WRITE_CALENDAR",
+        "android.permission.health.READ_STEPS",
+        "android.permission.health.READ_SLEEP",
+        "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.WRITE_EXERCISE",
+        "android.permission.health.READ_EXERCISE",
+        "android.permission.health.READ_BODY_MEASUREMENTS",
+        "android.permission.health.WRITE_BODY_MEASUREMENTS"
+      ]
     },
+
     "web": {
-      "favicon": "./assets/favicon.png"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png",
+      "output": "static",
+      "meta": {
+        "name": "FitLife — Your Personal Trainer",
+        "description": "6-month AI-powered fitness plan with nutrition tracking, sleep monitoring, and real-time posture correction.",
+        "themeColor": "#2979FF",
+        "viewport": "width=device-width, initial-scale=1, maximum-scale=1"
+      }
+    },
+
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26,
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ],
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FitLife uses your camera for real-time posture correction."
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "FitLife reads your calendar to find optimal workout windows."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2979FF",
+          "sounds": []
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "FitLife uses Face ID to securely unlock your fitness data."
+        }
+      ]
+    ],
+
+    "experiments": {
+      "typedRoutes": true
+    },
+
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1ca2f5af-1f6f-43e6-9746-beb1258651ca"
+      }
     }
   }
 }
