@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -10,53 +9,39 @@ import { requestNotificationPermission } from '../engines/accountabilityEngine';
 import { supabase } from '../lib/supabase';
 import { IS_DEMO } from '../constants/demo';
 
-// Keep native splash visible until we finish auth bootstrap (then hide explicitly)
-SplashScreen.preventAutoHideAsync().catch(() => {});
-
+/**
+ * Do not use expo-splash-screen here — Expo Router already coordinates splash hide
+ * via its internal navigation `onReady` hook. Extra preventAutoHide/hideAsync calls
+ * conflict on Android and can leave a frozen splash or blank screen.
+ */
 export default function RootLayout() {
   const loadProfile = useUserStore((s) => s.loadProfile);
   const logout = useUserStore((s) => s.logout);
 
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      try {
-        await loadProfile();
-      } finally {
-        if (!cancelled) {
-          await SplashScreen.hideAsync().catch(() => {});
-        }
-      }
-      if (!cancelled) {
-        requestNotificationPermission();
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
+    loadProfile();
+    requestNotificationPermission();
   }, [loadProfile]);
 
   useEffect(() => {
     if (IS_DEMO) return;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          await useUserStore.getState().loadProfile();
-        }
-
-        if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
-          await logout();
-          router.replace('/onboarding');
-        }
-
-        if (event === 'PASSWORD_RECOVERY') {
-          router.push('/auth/reset-password');
-        }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        await useUserStore.getState().loadProfile();
       }
-    );
+
+      if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        await logout();
+        router.replace('/onboarding');
+      }
+
+      if (event === 'PASSWORD_RECOVERY') {
+        router.push('/auth/reset-password');
+      }
+    });
 
     return () => subscription.unsubscribe();
   }, [logout]);

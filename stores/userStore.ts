@@ -39,43 +39,46 @@ export const useUserStore = create<UserStore>((set, get) => ({
   setProfile: (profile) => set({ profile, isOnboarded: true }),
 
   loadProfile: async () => {
-    set({ isLoading: true });
-    // Demo mode: skip auth and use mock profile
-    if (IS_DEMO) {
-      set({ profile: DEMO_PROFILE, isOnboarded: true, isLoading: false });
-      return;
-    }
-    // Release build without env — don't hang on empty Supabase client
-    if (!SUPABASE_URL?.trim() || !SUPABASE_ANON_KEY?.trim()) {
-      set({ profile: null, isOnboarded: false, isLoading: false });
-      return;
-    }
+    const failsafe = setTimeout(() => {
+      set((s) => (s.isLoading ? { isLoading: false } : s));
+    }, 15_000);
+
     try {
-      // getSession() reads local session first — getUser() can hang on network
-      const { data: sessionData, error: sessionErr } = await withTimeout(
-        supabase.auth.getSession(),
-        AUTH_TIMEOUT_MS
-      );
-      if (sessionErr) throw sessionErr;
-      const user = sessionData.session?.user;
-      if (!user) {
-        set({ profile: null, isLoading: false, isOnboarded: false });
+      set({ isLoading: true });
+      if (IS_DEMO) {
+        set({ profile: DEMO_PROFILE, isOnboarded: true });
         return;
       }
-      const { data, error } = await withTimeout(
-        supabase.from('users').select('*').eq('id', user.id).maybeSingle(),
-        AUTH_TIMEOUT_MS
-      );
-      if (error) throw error;
-      if (data) {
-        set({ profile: data as UserProfile, isOnboarded: true });
-      } else {
-        // Signed in but no profile row yet — send to onboarding
+      if (!SUPABASE_URL?.trim() || !SUPABASE_ANON_KEY?.trim()) {
+        set({ profile: null, isOnboarded: false });
+        return;
+      }
+      try {
+        const { data: sessionData, error: sessionErr } = await withTimeout(
+          supabase.auth.getSession(),
+          AUTH_TIMEOUT_MS
+        );
+        if (sessionErr) throw sessionErr;
+        const user = sessionData.session?.user;
+        if (!user) {
+          set({ profile: null, isOnboarded: false });
+          return;
+        }
+        const { data, error } = await withTimeout(
+          supabase.from('users').select('*').eq('id', user.id).maybeSingle(),
+          AUTH_TIMEOUT_MS
+        );
+        if (error) throw error;
+        if (data) {
+          set({ profile: data as UserProfile, isOnboarded: true });
+        } else {
+          set({ profile: null, isOnboarded: false });
+        }
+      } catch {
         set({ profile: null, isOnboarded: false });
       }
-    } catch {
-      set({ profile: null, isOnboarded: false });
     } finally {
+      clearTimeout(failsafe);
       set({ isLoading: false });
     }
   },
