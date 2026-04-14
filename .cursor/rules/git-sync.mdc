@@ -1,0 +1,14 @@
+---
+description: After making code or config changes, commit and push to origin
+alwaysApply: true
+---
+
+# Git: commit and push on updates
+
+When you finish a task that changes tracked project files (source, configs that belong in repo, assets, etc.):
+
+1. Run `git status` and review changes. Do not stage or commit secrets (e.g. `.env`, keystores, `google-services.json`, service account keys). These must stay gitignored.
+2. Stage relevant files with `git add`, write a clear commit message describing what changed and why.
+3. Push to the configured remote: `git push origin master` (or the current branch).
+
+If there is nothing to commit, do not create empty commits. If the push fails (auth, network), report the error and what the user should do.
