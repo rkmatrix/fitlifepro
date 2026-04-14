@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -9,28 +10,41 @@ import { requestNotificationPermission } from '../engines/accountabilityEngine';
 import { supabase } from '../lib/supabase';
 import { IS_DEMO } from '../constants/demo';
 
+// Keep native splash visible until we finish auth bootstrap (then hide explicitly)
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function RootLayout() {
-  const { loadProfile, setProfile, logout } = useUserStore();
+  const loadProfile = useUserStore((s) => s.loadProfile);
+  const logout = useUserStore((s) => s.logout);
 
   useEffect(() => {
-    // Load persisted session on app start
-    loadProfile();
-    requestNotificationPermission();
+    let cancelled = false;
 
-    if (IS_DEMO) return; // Skip live auth in demo mode
+    (async () => {
+      try {
+        await loadProfile();
+      } finally {
+        if (!cancelled) {
+          await SplashScreen.hideAsync().catch(() => {});
+        }
+      }
+      if (!cancelled) {
+        requestNotificationPermission();
+      }
+    })();
 
-    // ── Cross-device session sync ─────────────────────────────────────────
-    // onAuthStateChange fires whenever:
-    //   • a session is restored from secure storage on launch
-    //   • the user signs in (any platform)
-    //   • the token auto-refreshes
-    //   • the user signs out from any device
-    //   • the session expires
+    return () => {
+      cancelled = true;
+    };
+  }, [loadProfile]);
+
+  useEffect(() => {
+    if (IS_DEMO) return;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          // Reload the profile from DB to keep all devices in sync
-          await loadProfile();
+          await useUserStore.getState().loadProfile();
         }
 
         if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
@@ -38,19 +52,14 @@ export default function RootLayout() {
           router.replace('/onboarding');
         }
 
-        if (event === 'TOKEN_REFRESHED') {
-          // Session silently refreshed — no UI change needed
-        }
-
         if (event === 'PASSWORD_RECOVERY') {
-          // User clicked password-reset link — route to reset screen
           router.push('/auth/reset-password');
         }
       }
     );
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [logout]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

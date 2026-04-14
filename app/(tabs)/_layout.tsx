@@ -1,5 +1,5 @@
 import { Tabs, Redirect } from 'expo-router';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, FontSize } from '../../constants/theme';
 import { useUserStore } from '../../stores/userStore';
@@ -16,9 +16,17 @@ function TabIcon({ focused, label, icon }: { focused: boolean; label: string; ic
 }
 
 export default function TabLayout() {
-  const { profile, isLoading, isOnboarded } = useUserStore();
+  const { isLoading, isOnboarded } = useUserStore();
 
-  if (!isLoading && !isOnboarded) {
+  if (isLoading) {
+    return (
+      <View style={styles.bootScreen}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (!isOnboarded) {
     return <Redirect href="/onboarding" />;
   }
 
@@ -86,6 +94,12 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  bootScreen: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
   tabBar: {
     backgroundColor: Colors.surface,
     borderTopColor: Colors.border,
