@@ -1,20 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants/config';
+import { authStorage } from './auth-storage';
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   console.warn('[Supabase] Missing URL or anon key — running in limited mode.');
 }
 
 /**
- * Auth storage: AsyncStorage is the officially supported option for React Native +
- * Supabase. SecureStore caused session restore issues on some devices (stuck splash).
- * Web uses the same package (localStorage under the hood in RN-web).
+ * Auth storage: AsyncStorage on native; web-safe localStorage via `auth-storage`
+ * (avoids AsyncStorage + `window` during SSR / Node).
  */
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: AsyncStorage,
+    storage: authStorage as any,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: Platform.OS === 'web',
