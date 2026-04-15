@@ -123,31 +123,47 @@ export const useNutritionStore = create<NutritionStore>((set, get) => ({
   },
 
   logFood: async (userId, entry) => {
-    const newEntry = {
+    const newEntry: FoodEntry = {
       ...entry,
+      id: `entry_${Date.now()}`,
       logged_at: entry.logged_at ?? new Date().toISOString(),
     };
-    const { data } = await supabase.from('food_entries').insert(newEntry).select().single();
-    if (!data) return;
+    if (!IS_DEMO) {
+      const { data } = await supabase.from('food_entries').insert(newEntry).select().single();
+      if (!data) return;
+      const inserted = data as FoodEntry;
+      const { today } = get();
+      set({
+        today: {
+          ...today,
+          calories: today.calories + inserted.calories,
+          protein: today.protein + inserted.protein,
+          carbs: today.carbs + inserted.carbs,
+          fat: today.fat + inserted.fat,
+          entries: [...today.entries, inserted],
+        },
+      });
+      return;
+    }
+    // Demo: update local state only
     const { today } = get();
-    const updatedEntry = data as FoodEntry;
     set({
       today: {
         ...today,
-        calories: today.calories + updatedEntry.calories,
-        protein: today.protein + updatedEntry.protein,
-        carbs: today.carbs + updatedEntry.carbs,
-        fat: today.fat + updatedEntry.fat,
-        entries: [...today.entries, updatedEntry],
+        calories: today.calories + newEntry.calories,
+        protein: today.protein + newEntry.protein,
+        carbs: today.carbs + newEntry.carbs,
+        fat: today.fat + newEntry.fat,
+        entries: [...today.entries, newEntry],
       },
     });
   },
 
   removeFood: async (entryId) => {
-    await supabase.from('food_entries').delete().eq('id', entryId);
     const { today } = get();
     const removed = today.entries.find((e) => e.id === entryId);
     if (!removed) return;
+    if (!IS_DEMO) await supabase.from('food_entries').delete().eq('id', entryId);
     set({
       today: {
         ...today,
@@ -162,10 +178,12 @@ export const useNutritionStore = create<NutritionStore>((set, get) => ({
 
   updateWater: async (userId, amountMl) => {
     const date = format(new Date(), 'yyyy-MM-dd');
-    await supabase.from('daily_water').upsert(
-      { user_id: userId, date, amount_ml: amountMl },
-      { onConflict: 'user_id,date' }
-    );
+    if (!IS_DEMO) {
+      await supabase.from('daily_water').upsert(
+        { user_id: userId, date, amount_ml: amountMl },
+        { onConflict: 'user_id,date' }
+      );
+    }
     set({ today: { ...get().today, water_ml: amountMl } });
   },
 }));

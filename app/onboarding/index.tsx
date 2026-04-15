@@ -252,7 +252,15 @@ export default function OnboardingScreen() {
       setProfile({ ...profile, created_at: new Date().toISOString() });
       router.replace('/(tabs)');
     } catch (e: any) {
-      setError(e.message ?? 'Sign up failed');
+      let msg: string = e.message ?? 'Sign up failed';
+      if (msg.includes('Invalid API key') || msg.includes('invalid_api_key') || msg.includes('apikey')) {
+        msg = 'App configuration error — please reinstall or contact support.';
+      } else if (msg.includes('network') || msg.includes('fetch')) {
+        msg = 'Network error. Please check your connection and try again.';
+      } else if (msg.includes('User already registered')) {
+        msg = 'An account with this email already exists. Use the "Sign in" option instead.';
+      }
+      setError(msg);
     } finally {
       setIsLoading(false);
     }

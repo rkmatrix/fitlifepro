@@ -146,6 +146,7 @@ export interface FoodItem {
   fat_per_100g: number;
   fiber_per_100g?: number;
   sodium_per_100g?: number;
+  image_url?: string;
   source: FoodSource;
   barcode?: string;
 }

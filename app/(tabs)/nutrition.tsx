@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, Platform,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Image, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format, subDays, addDays, parseISO } from 'date-fns';
@@ -312,8 +312,9 @@ export default function NutritionScreen() {
 
   const mealEntries = (mealType: MealType) =>
     diaryData.entries.filter((e) => e.meal_type === mealType);
-  const calLeft = DEFAULT_CALORIE_TARGET - diaryData.calories;
-  const calPct = Math.min(1, diaryData.calories / DEFAULT_CALORIE_TARGET);
+  const calorieGoal = profile?.target_calories ?? DEFAULT_CALORIE_TARGET;
+  const calLeft = calorieGoal - diaryData.calories;
+  const calPct = Math.min(1, diaryData.calories / calorieGoal);
 
   // Load history for insights
   useEffect(() => {
@@ -359,7 +360,7 @@ export default function NutritionScreen() {
           <View style={styles.calRow}>
             <Text style={styles.calConsumed}>{diaryData.calories}</Text>
             <Text style={styles.calDivider}> / </Text>
-            <Text style={styles.calGoal}>{DEFAULT_CALORIE_TARGET}</Text>
+            <Text style={styles.calGoal}>{calorieGoal}</Text>
           </View>
           <Text style={[styles.calRemaining, calLeft >= 0 ? styles.calRemainingGood : styles.calRemainingOver]}>
             {calLeft >= 0 ? `${calLeft} remaining` : `${Math.abs(calLeft)} over goal`}
@@ -371,9 +372,9 @@ export default function NutritionScreen() {
       {/* Macro bars */}
       <View style={styles.macroCard}>
         {[
-          { label: 'Carbs', value: diaryData.carbs, goal: DEFAULT_CARB_TARGET, color: Colors.secondary },
-          { label: 'Fat', value: diaryData.fat, goal: DEFAULT_FAT_TARGET, color: '#A55EEA' },
-          { label: 'Protein', value: diaryData.protein, goal: DEFAULT_PROTEIN_TARGET, color: Colors.accent },
+          { label: 'Carbs', value: diaryData.carbs, goal: diaryData.target_carbs || DEFAULT_CARB_TARGET, color: Colors.secondary },
+          { label: 'Fat', value: diaryData.fat, goal: diaryData.target_fat || DEFAULT_FAT_TARGET, color: '#A55EEA' },
+          { label: 'Protein', value: diaryData.protein, goal: diaryData.target_protein || DEFAULT_PROTEIN_TARGET, color: Colors.accent },
         ].map((m) => (
           <View key={m.label} style={styles.macroRow}>
             <View style={styles.macroLabelRow}>
@@ -513,6 +514,9 @@ export default function NutritionScreen() {
             {/* Selected food detail */}
             {selectedFood && (
               <View style={styles.selectedFoodCard}>
+                {selectedFood.image_url && (
+                  <Image source={{ uri: selectedFood.image_url }} style={styles.selectedFoodImage} />
+                )}
                 <Text style={styles.selectedFoodName}>{selectedFood.name}</Text>
                 {selectedFood.brand && <Text style={styles.selectedFoodBrand}>{selectedFood.brand}</Text>}
                 <View style={styles.quantityRow}>
@@ -548,14 +552,27 @@ export default function NutritionScreen() {
             )}
 
             {/* Results */}
+            {searchResults.length === 0 && searchQuery.trim().length > 0 && !isSearching && (
+              <View style={styles.noResults}>
+                <Text style={styles.noResultsText}>No results for "{searchQuery}"</Text>
+                <Text style={styles.noResultsSub}>Try a different name or spelling</Text>
+              </View>
+            )}
             {searchResults.map((food, i) => (
               <TouchableOpacity
                 key={i}
                 style={[styles.resultRow, selectedFood?.name === food.name && styles.resultRowSelected]}
                 onPress={() => setSelectedFood(food)}
               >
+                {food.image_url ? (
+                  <Image source={{ uri: food.image_url }} style={styles.resultThumb} />
+                ) : (
+                  <View style={styles.resultThumbPlaceholder}>
+                    <Text style={styles.resultThumbEmoji}>🍽️</Text>
+                  </View>
+                )}
                 <View style={styles.resultInfo}>
-                  <Text style={styles.resultName}>{food.name}</Text>
+                  <Text style={styles.resultName} numberOfLines={2}>{food.name}</Text>
                   {food.brand && <Text style={styles.resultBrand}>{food.brand}</Text>}
                 </View>
                 <View style={styles.resultMacros}>
@@ -699,14 +716,21 @@ const styles = StyleSheet.create({
   logBtn: { backgroundColor: Colors.primary, borderRadius: BorderRadius.md, paddingVertical: 10, alignItems: 'center' },
   logBtnText: { color: '#fff', fontWeight: '700', fontSize: FontSize.sm },
 
-  resultRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: 4, borderWidth: 1, borderColor: Colors.border },
+  resultRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: 4, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
   resultRowSelected: { borderColor: Colors.primary, backgroundColor: `${Colors.primary}08` },
+  resultThumb: { width: 44, height: 44, borderRadius: BorderRadius.sm, backgroundColor: Colors.border },
+  resultThumbPlaceholder: { width: 44, height: 44, borderRadius: BorderRadius.sm, backgroundColor: Colors.border, justifyContent: 'center', alignItems: 'center' },
+  resultThumbEmoji: { fontSize: 20 },
   resultInfo: { flex: 1 },
   resultName: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary },
   resultBrand: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   resultMacros: { alignItems: 'flex-end' },
   resultCal: { fontSize: FontSize.md, fontWeight: '800', color: Colors.primary },
   resultCalLabel: { fontSize: 10, color: Colors.textTertiary },
+  noResults: { alignItems: 'center', paddingVertical: Spacing.xl },
+  noResultsText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.textSecondary },
+  noResultsSub: { fontSize: FontSize.sm, color: Colors.textTertiary, marginTop: 4 },
+  selectedFoodImage: { width: '100%', height: 120, borderRadius: BorderRadius.md, marginBottom: Spacing.sm, resizeMode: 'contain', backgroundColor: Colors.border },
 
   // Meal prep
   mealPrepHeading: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.textPrimary, marginBottom: 4 },
