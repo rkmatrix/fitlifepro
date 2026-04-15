@@ -4,19 +4,28 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { useUserStore } from '../stores/userStore';
 import { requestNotificationPermission } from '../engines/accountabilityEngine';
 import { supabase } from '../lib/supabase';
 import { IS_DEMO } from '../constants/demo';
 
-/**
- * Do not use expo-splash-screen here — Expo Router already coordinates splash hide
- * via its internal navigation `onReady` hook. Extra preventAutoHide/hideAsync calls
- * conflict on Android and can leave a frozen splash or blank screen.
- */
+// Keep the splash visible until we know where to route (auth check or demo).
+// Expo Router's internal auto-hide is unreliable on Android with newArchEnabled
+// + edgeToEdgeEnabled — managing it explicitly prevents the "frozen logo" symptom.
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
 export default function RootLayout() {
   const loadProfile = useUserStore((s) => s.loadProfile);
   const logout = useUserStore((s) => s.logout);
+  const isLoading = useUserStore((s) => s.isLoading);
+
+  // Hide the splash as soon as the auth/profile check is done.
+  useEffect(() => {
+    if (!isLoading) {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [isLoading]);
 
   useEffect(() => {
     loadProfile();
