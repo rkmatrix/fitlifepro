@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { FoodEntry, DailyNutrition, FoodItem, MealType } from '../types';
 import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
+import { IS_DEMO, DEMO_NUTRITION } from '../constants/demo';
 import {
   DEFAULT_CALORIE_TARGET,
   DEFAULT_PROTEIN_TARGET,
@@ -41,6 +42,7 @@ export const useNutritionStore = create<NutritionStore>((set, get) => ({
   recentFoods: [],
 
   loadToday: async (userId) => {
+    if (IS_DEMO) { set({ today: DEMO_NUTRITION }); return; }
     const date = format(new Date(), 'yyyy-MM-dd');
     const { data } = await supabase
       .from('food_entries')

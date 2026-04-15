@@ -116,6 +116,22 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
       (new Date().getTime() - activeSession.startTime.getTime()) / 60000
     );
 
+    // Demo mode: update state directly without Supabase
+    if (IS_DEMO) {
+      const log: WorkoutLog = {
+        id: `demo-session-${Date.now()}`,
+        user_id: 'demo-user-001',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        workout_day_id: activeSession.workoutDay.id,
+        status,
+        variant: activeSession.variant,
+        duration_min: duration,
+        exercise_logs: activeSession.exerciseLogs,
+      };
+      set({ todayLog: log, activeSession: null, logs: [log, ...get().logs] });
+      return;
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -142,7 +158,7 @@ export const useWorkoutStore = create<WorkoutStore>((set, get) => ({
   setCalendarConflict: (conflict) => set({ calendarConflict: conflict }),
 
   loadTodayLog: async (userId) => {
-    if (IS_DEMO) { set({ todayLog: null }); return; }  // No pre-filled demo log
+    if (IS_DEMO) { set({ todayLog: DEMO_TODAY_LOG }); return; }
     const today = format(new Date(), 'yyyy-MM-dd');
     const { data } = await supabase
       .from('workout_logs')

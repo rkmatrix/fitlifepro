@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
   Dimensions, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../constants/theme';
 import { supabase } from '../../lib/supabase';
 import { useUserStore } from '../../stores/userStore';
@@ -50,11 +51,24 @@ export default function OnboardingScreen() {
   const [notifEnabled, setNotifEnabled] = useState(true);
   const [calendarEnabled, setCalendarEnabled] = useState(true);
   const [error, setError] = useState('');
+  const [isSignIn, setIsSignIn] = useState(false);
+
+  const params = useLocalSearchParams<{ oauth?: string }>();
+
+  // If redirected from OAuth callback with no profile, jump straight to profile step
+  useEffect(() => {
+    if (params.oauth) {
+      const p = params.oauth as string;
+      setAuthMethod(p === 'google' || p === 'facebook' ? (p as AuthMethod) : 'google');
+      setStep(2);
+    }
+  }, []);
 
   const canAdvance = (): boolean => {
     if (step === 0) return true;
     if (step === 1) {
       if (authMethod === 'google' || authMethod === 'facebook') return true;
+      if (isSignIn) return email.length > 3 && password.length >= 6;
       return name.length > 0 && email.length > 3 && password.length >= 8 && password === confirmPassword;
     }
     if (step === 2) return name.length > 0 && age.length > 0 && heightCm.length > 0 && weightKg.length > 0;
@@ -82,14 +96,38 @@ export default function OnboardingScreen() {
       const redirectUrl = Platform.OS === 'web'
         ? `${window.location.origin}/auth/callback`
         : 'fitlife://auth/callback';
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo: redirectUrl, skipBrowserRedirect: false },
-      });
-      if (error) throw error;
-      // On native, the app is redirected via deep link — _layout handles the session
+
+      if (Platform.OS === 'web') {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo: redirectUrl, skipBrowserRedirect: false },
+        });
+        if (error) throw error;
+      } else {
+        // On native: get the auth URL and open it via the system browser.
+        // skipBrowserRedirect:true prevents supabase from trying a DOM redirect.
+        // After auth the deep link fitlife://auth/callback brings the user back.
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+        });
+        if (error) throw error;
+        if (data?.url) {
+          setIsLoading(false);
+          await Linking.openURL(data.url);
+        }
+      }
     } catch (e: any) {
-      setError(e.message ?? 'Authentication failed');
+      const raw: string = e.message ?? '';
+      let friendly = 'Authentication failed. Please try again.';
+      if (raw.includes('provider is not enabled') || raw.includes('Unsupported provider')) {
+        friendly = `${provider === 'google' ? 'Google' : 'Facebook'} sign-in is not yet configured. Please use email sign-in or contact support.`;
+      } else if (raw.includes('network') || raw.includes('fetch')) {
+        friendly = 'Network error. Please check your connection and try again.';
+      } else if (raw.length > 0 && raw.length < 120) {
+        friendly = raw;
+      }
+      setError(friendly);
       setIsLoading(false);
     }
   };
@@ -111,6 +149,45 @@ export default function OnboardingScreen() {
     }
     setAuthMethod('email');
     setStep(2);
+  };
+
+  // Sign-in handler for existing email/password users
+  const handleEmailLoginExisting = async () => {
+    setError('');
+    const emailVal = validateEmail(email);
+    if (!emailVal.ok) { setError(emailVal.error!); return; }
+    if (!password) { setError('Password is required'); return; }
+    if (!checkAuthRateLimit(email.toLowerCase())) {
+      setError('Too many sign-in attempts. Please wait a minute.');
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      if (error) throw error;
+      if (data.user) {
+        await useUserStore.getState().loadProfile();
+        if (useUserStore.getState().isOnboarded) {
+          router.replace('/(tabs)');
+        } else {
+          // Authenticated but no profile record — continue to profile setup
+          setAuthMethod('email');
+          setStep(2);
+        }
+      }
+    } catch (e: any) {
+      const msg: string = e.message ?? '';
+      if (msg.includes('Invalid login credentials') || msg.includes('invalid_credentials')) {
+        setError('Incorrect email or password. Please try again.');
+      } else {
+        setError(msg || 'Sign in failed. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleNext = async () => {
@@ -194,8 +271,8 @@ export default function OnboardingScreen() {
 
       <KeyboardAvoidingView style={styles.content} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          <Text style={styles.stepTitle}>{STEPS[step].title}</Text>
-          <Text style={styles.stepSubtitle}>{STEPS[step].subtitle}</Text>
+          <Text style={styles.stepTitle}>{step === 1 && isSignIn ? 'Welcome back' : STEPS[step].title}</Text>
+          <Text style={styles.stepSubtitle}>{step === 1 && isSignIn ? 'Sign in to continue your journey.' : STEPS[step].subtitle}</Text>
 
           {/* Step 0: Welcome */}
           {step === 0 && (
@@ -226,50 +303,55 @@ export default function OnboardingScreen() {
           {/* Step 1: Account — Social + Email */}
           {step === 1 && (
             <View style={styles.authSection}>
-              {/* Social buttons */}
-              <TouchableOpacity
-                style={styles.socialBtn}
-                onPress={() => handleSocialAuth('google')}
-                disabled={isLoading}
-              >
-                {isLoading && authMethod === 'google' ? (
-                  <ActivityIndicator size="small" color={Colors.textPrimary} />
-                ) : (
-                  <Text style={styles.socialBtnIcon}>G</Text>
-                )}
-                <Text style={styles.socialBtnText}>Continue with Google</Text>
-              </TouchableOpacity>
+              {/* Social buttons — sign-up only */}
+              {!isSignIn && (
+                <>
+                  <TouchableOpacity
+                    style={styles.socialBtn}
+                    onPress={() => handleSocialAuth('google')}
+                    disabled={isLoading}
+                  >
+                    {isLoading && authMethod === 'google' ? (
+                      <ActivityIndicator size="small" color={Colors.textPrimary} />
+                    ) : (
+                      <Text style={styles.socialBtnIcon}>G</Text>
+                    )}
+                    <Text style={styles.socialBtnText}>Continue with Google</Text>
+                  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[styles.socialBtn, styles.facebookBtn]}
-                onPress={() => handleSocialAuth('facebook')}
-                disabled={isLoading}
-              >
-                {isLoading && authMethod === 'facebook' ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={[styles.socialBtnIcon, styles.facebookBtnIcon]}>f</Text>
-                )}
-                <Text style={[styles.socialBtnText, styles.facebookBtnText]}>Continue with Facebook</Text>
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.socialBtn, styles.facebookBtn]}
+                    onPress={() => handleSocialAuth('facebook')}
+                    disabled={isLoading}
+                  >
+                    {isLoading && authMethod === 'facebook' ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <Text style={[styles.socialBtnIcon, styles.facebookBtnIcon]}>f</Text>
+                    )}
+                    <Text style={[styles.socialBtnText, styles.facebookBtnText]}>Continue with Facebook</Text>
+                  </TouchableOpacity>
 
-              {/* Divider */}
-              <View style={styles.divider}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>or use email</Text>
-                <View style={styles.dividerLine} />
-              </View>
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>or use email</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+                </>
+              )}
 
               {/* Email form */}
               <View style={{ gap: Spacing.sm }}>
-                <TextInput
-                  style={styles.input}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="Full name"
-                  placeholderTextColor={Colors.textTertiary}
-                  autoCapitalize="words"
-                />
+                {!isSignIn && (
+                  <TextInput
+                    style={styles.input}
+                    value={name}
+                    onChangeText={setName}
+                    placeholder="Full name"
+                    placeholderTextColor={Colors.textTertiary}
+                    autoCapitalize="words"
+                  />
+                )}
                 <TextInput
                   style={styles.input}
                   value={email}
@@ -283,28 +365,44 @@ export default function OnboardingScreen() {
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="Password (min 8 chars, 1 uppercase, 1 number)"
+                  placeholder={isSignIn ? 'Password' : 'Password (min 8 chars, 1 uppercase, 1 number)'}
                   placeholderTextColor={Colors.textTertiary}
                   secureTextEntry
                 />
-                <TextInput
-                  style={[styles.input, confirmPassword && password !== confirmPassword && styles.inputError]}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  placeholder="Confirm password"
-                  placeholderTextColor={Colors.textTertiary}
-                  secureTextEntry
-                />
-                {confirmPassword && password !== confirmPassword && (
-                  <Text style={styles.errorText}>Passwords don't match</Text>
+                {!isSignIn && (
+                  <>
+                    <TextInput
+                      style={[styles.input, confirmPassword && password !== confirmPassword && styles.inputError]}
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      placeholder="Confirm password"
+                      placeholderTextColor={Colors.textTertiary}
+                      secureTextEntry
+                    />
+                    {confirmPassword && password !== confirmPassword && (
+                      <Text style={styles.errorText}>Passwords don't match</Text>
+                    )}
+                  </>
                 )}
               </View>
 
+              {/* Sign-in / Sign-up toggle */}
+              <TouchableOpacity
+                onPress={() => { setIsSignIn(!isSignIn); setError(''); setAuthMethod(null); }}
+                style={{ marginTop: 4, alignItems: 'center' }}
+              >
+                <Text style={styles.toggleSignInText}>
+                  {isSignIn ? 'New here? Create account →' : 'Already have an account? Sign In'}
+                </Text>
+              </TouchableOpacity>
+
               {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-              <Text style={styles.termsText}>
-                By continuing you agree to our Terms of Service and Privacy Policy.
-              </Text>
+              {!isSignIn && (
+                <Text style={styles.termsText}>
+                  By continuing you agree to our Terms of Service and Privacy Policy.
+                </Text>
+              )}
             </View>
           )}
 
@@ -423,13 +521,21 @@ export default function OnboardingScreen() {
           )}
           <TouchableOpacity
             style={[styles.nextBtn, !canAdvance() && styles.nextBtnDisabled]}
-            onPress={step === 1 && authMethod !== 'google' && authMethod !== 'facebook' ? handleEmailSignIn : handleNext}
+            onPress={
+              step === 1 && isSignIn
+                ? handleEmailLoginExisting
+                : step === 1 && authMethod !== 'google' && authMethod !== 'facebook'
+                ? handleEmailSignIn
+                : handleNext
+            }
             disabled={!canAdvance() || isLoading}
           >
-            {isLoading && !authMethod ? (
+            {isLoading && (!authMethod || isSignIn) ? (
               <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text style={styles.nextBtnText}>{step === STEPS.length - 1 ? "Let's Go! 🚀" : 'Continue →'}</Text>
+              <Text style={styles.nextBtnText}>
+                {step === STEPS.length - 1 ? "Let's Go! 🚀" : step === 1 && isSignIn ? 'Sign In →' : 'Continue →'}
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -477,6 +583,7 @@ const styles = StyleSheet.create({
   dividerText: { fontSize: FontSize.sm, color: Colors.textTertiary, fontWeight: '500' },
 
   termsText: { fontSize: FontSize.xs, color: Colors.textTertiary, textAlign: 'center', lineHeight: 18, marginTop: Spacing.xs },
+  toggleSignInText: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '700', textDecorationLine: 'underline' },
 
   // Form
   form: { gap: Spacing.xs },

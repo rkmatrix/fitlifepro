@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { Platform } from 'react-native';
 import { UserProfile } from '../types';
 import { supabase } from '../lib/supabase';
 import { IS_DEMO, DEMO_PROFILE } from '../constants/demo';
@@ -61,7 +62,12 @@ export const useUserStore = create<UserStore>((set, get) => ({
         if (sessionErr) throw sessionErr;
         const user = sessionData.session?.user;
         if (!user) {
-          set({ profile: null, isOnboarded: false });
+          // On web: skip login — load demo profile so the app is browsable
+          if (Platform.OS === 'web') {
+            set({ profile: DEMO_PROFILE, isOnboarded: true });
+          } else {
+            set({ profile: null, isOnboarded: false });
+          }
           return;
         }
         const { data, error } = await withTimeout(

@@ -35,7 +35,7 @@ export const useHealthStore = create<HealthStore>((set) => ({
   latestBodyMetrics: null,
 
   loadTodaySleep: async (userId) => {
-    if (IS_DEMO) { set({ todaySleep: null }); return; }  // No dummy sleep
+    if (IS_DEMO) { set({ todaySleep: DEMO_SLEEP }); return; }
     const today = format(new Date(), 'yyyy-MM-dd');
     const { data } = await supabase
       .from('sleep_logs')
@@ -47,7 +47,7 @@ export const useHealthStore = create<HealthStore>((set) => ({
   },
 
   loadSleepHistory: async (userId, days = 30) => {
-    if (IS_DEMO) { set({ sleepHistory: [] }); return; }  // No dummy history
+    if (IS_DEMO) { set({ sleepHistory: DEMO_SLEEP_HISTORY }); return; }
     const cutoff = format(
       new Date(Date.now() - days * 24 * 60 * 60 * 1000),
       'yyyy-MM-dd'
@@ -62,7 +62,7 @@ export const useHealthStore = create<HealthStore>((set) => ({
   },
 
   loadHealthMetrics: async (userId) => {
-    if (IS_DEMO) { set({ todayHealth: null }); return; }  // No dummy metrics
+    if (IS_DEMO) { set({ todayHealth: DEMO_HEALTH }); return; }
     const today = format(new Date(), 'yyyy-MM-dd');
     const { data } = await supabase
       .from('health_metrics')
@@ -75,7 +75,7 @@ export const useHealthStore = create<HealthStore>((set) => ({
 
   loadBodyMetrics: async (userId) => {
     if (IS_DEMO) {
-      set({ bodyMetrics: [], latestBodyMetrics: null });  // No dummy body metrics
+      set({ bodyMetrics: DEMO_BODY_METRICS, latestBodyMetrics: DEMO_BODY_METRICS[0] ?? null });
       return;
     }
     const { data } = await supabase

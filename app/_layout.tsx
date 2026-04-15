@@ -64,11 +64,7 @@ export default function RootLayout() {
           <Stack.Screen name="onboarding/index" options={{ headerShown: false, animation: 'fade' }} />
           <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
           <Stack.Screen name="auth/reset-password" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="workout/session/[id]"
-            options={{ headerShown: false, animation: 'slide_from_bottom', presentation: 'fullScreenModal' }}
-          />
-          <Stack.Screen name="workout/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
+          <Stack.Screen name="workout" options={{ headerShown: false }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

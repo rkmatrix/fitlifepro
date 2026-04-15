@@ -47,3 +47,4 @@ google-services.json
 # generated native folders
 /ios
 /android
+*.apk 

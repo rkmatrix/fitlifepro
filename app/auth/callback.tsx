@@ -22,6 +22,16 @@ import { supabase } from '../../lib/supabase';
 import { useUserStore } from '../../stores/userStore';
 import { Colors } from '../../constants/theme';
 
+function routeAfterLoad(session: { user: { app_metadata?: Record<string, string> } }) {
+  if (useUserStore.getState().isOnboarded) {
+    router.replace('/(tabs)');
+  } else {
+    // Authenticated but no profile yet — send to profile-completion step
+    const provider = session.user.app_metadata?.provider ?? 'oauth';
+    router.replace(`/onboarding?oauth=${provider}`);
+  }
+}
+
 export default function AuthCallbackScreen() {
   const { loadProfile } = useUserStore();
   const params = useLocalSearchParams();
@@ -43,7 +53,7 @@ export default function AuthCallbackScreen() {
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           await loadProfile();
-          router.replace('/(tabs)');
+          routeAfterLoad(session);
         } else {
           router.replace('/onboarding');
         }
@@ -53,7 +63,7 @@ export default function AuthCallbackScreen() {
         const { data: { session: existing } } = await supabase.auth.getSession();
         if (existing) {
           await loadProfile();
-          router.replace('/(tabs)');
+          routeAfterLoad(existing);
           return;
         }
 
@@ -66,7 +76,7 @@ export default function AuthCallbackScreen() {
               clearTimeout(fallback);
               subscription.unsubscribe();
               await loadProfile();
-              router.replace('/(tabs)');
+              routeAfterLoad(session);
             } else if (event === 'SIGNED_OUT') {
               clearTimeout(fallback);
               subscription.unsubscribe();

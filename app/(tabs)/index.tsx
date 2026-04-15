@@ -74,6 +74,11 @@ export default function TodayScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [waterGlasses, setWaterGlasses] = useState(0);
 
+  // Sync glass count from stored water data
+  useEffect(() => {
+    setWaterGlasses(Math.round(nutrition.water_ml / 250));
+  }, [nutrition.water_ml]);
+
   const todayWorkout = profile
     ? getDayWorkout(profile.phase, new Date().getDay())
     : null;
@@ -130,8 +135,9 @@ export default function TodayScreen() {
     await updateWater(profile.id, newGlasses * 250);
   };
 
-  const caloriesLeft = DEFAULT_CALORIE_TARGET - nutrition.calories;
-  const calPct = Math.min(1, nutrition.calories / DEFAULT_CALORIE_TARGET);
+  const caloriesLeft = (profile?.target_calories ?? DEFAULT_CALORIE_TARGET) - nutrition.calories;
+  const calPct = Math.min(1, nutrition.calories / (profile?.target_calories ?? DEFAULT_CALORIE_TARGET));
+  const calorieTarget = profile?.target_calories ?? DEFAULT_CALORIE_TARGET;
   const workoutDone = todayLog?.status === 'done';
   const sleepHours = todaySleep ? Math.round(todaySleep.duration_min / 60 * 10) / 10 : 0;
   const steps = todayHealth?.steps ?? 0;
@@ -161,7 +167,7 @@ export default function TodayScreen() {
           <View style={styles.caloriesLeft}>
             <Text style={styles.caloriesTitle}>Calories</Text>
             <Text style={styles.caloriesNum}>{nutrition.calories}</Text>
-            <Text style={styles.caloriesSubtitle}>/ {DEFAULT_CALORIE_TARGET} kcal</Text>
+            <Text style={styles.caloriesSubtitle}>/ {calorieTarget} kcal</Text>
             <View style={[styles.calTag, caloriesLeft >= 0 ? styles.calTagGood : styles.calTagOver]}>
               <Text style={[styles.calTagText, caloriesLeft >= 0 ? styles.calTagTextGood : styles.calTagTextOver]}>
                 {caloriesLeft >= 0 ? `${caloriesLeft} left` : `${Math.abs(caloriesLeft)} over`}
