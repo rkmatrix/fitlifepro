@@ -1,11 +1,13 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useUserStore } from '../stores/userStore';
 import { requestNotificationPermission } from '../engines/accountabilityEngine';
+import { localDB } from '../lib/local-db';
 
 // Keep the splash visible until the profile check is done.
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -21,7 +23,12 @@ export default function RootLayout() {
   }, [isLoading]);
 
   useEffect(() => {
-    loadProfile();
+    // On web: pull cloud data into localStorage before loading profile
+    if (Platform.OS === 'web') {
+      localDB.syncFromCloud().then(() => loadProfile());
+    } else {
+      loadProfile();
+    }
     requestNotificationPermission();
   }, [loadProfile]);
 

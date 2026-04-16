@@ -2,8 +2,8 @@
   "expo": {
     "name": "FitLife",
     "slug": "fitlife",
-    "version": "1.2.0",
-    "runtimeVersion": "1.2.0",
+    "version": "1.2.1",
+    "runtimeVersion": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -18,7 +18,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fitlife.app",
-      "buildNumber": "12",
+      "buildNumber": "13",
       "requireFullScreen": false,
       "usesAppleSignIn": false,
       "infoPlist": {
@@ -45,7 +45,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.fitlife.app",
-      "versionCode": 12,
+      "versionCode": 13,
       "intentFilters": [
         {
           "action": "VIEW",
