@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Image, Platform,
 } from 'react-native';
@@ -237,10 +237,12 @@ export default function NutritionScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FoodItem[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [selectedMeal, setSelectedMeal] = useState<MealType>('lunch');
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
   const [quantity, setQuantity] = useState('100');
   const [eatTime, setEatTime] = useState(MEAL_TIMES.lunch);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isToday = selectedDate === format(new Date(), 'yyyy-MM-dd');
 
@@ -274,12 +276,32 @@ export default function NutritionScreen() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+  const handleSearch = useCallback(async (q: string) => {
+    const query = q.trim();
+    if (!query) { setSearchResults([]); setSearchError(null); return; }
     setIsSearching(true);
-    const results = await searchUSDAFoods(searchQuery, 15);
-    setSearchResults(results);
-    setIsSearching(false);
+    setSearchError(null);
+    try {
+      const results = await searchUSDAFoods(query, 20);
+      setSearchResults(results);
+      if (results.length === 0) setSearchError(`No results for "${query}". Try a different spelling.`);
+    } catch {
+      setSearchError('Search failed. Check your internet connection and try again.');
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  const onSearchChange = (text: string) => {
+    setSearchQuery(text);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    if (text.trim().length >= 2) {
+      debounceTimer.current = setTimeout(() => handleSearch(text), 500);
+    } else if (!text.trim()) {
+      setSearchResults([]);
+      setSearchError(null);
+    }
   };
 
   const handleLogFood = async () => {
@@ -502,14 +524,27 @@ export default function NutritionScreen() {
               <TextInput
                 style={styles.searchInput}
                 value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Search food (e.g. idli, chicken breast)"
+                onChangeText={onSearchChange}
+                placeholder="Search food (e.g. idli, chicken breast…)"
                 placeholderTextColor={Colors.textTertiary}
                 returnKeyType="search"
-                onSubmitEditing={handleSearch}
+                onSubmitEditing={() => handleSearch(searchQuery)}
+                autoCorrect={false}
               />
-              {isSearching && <Text style={styles.searchingText}>…</Text>}
+              {isSearching
+                ? <Text style={styles.searchingText}>Searching…</Text>
+                : searchQuery.length > 0
+                  ? <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); setSearchError(null); }}>
+                      <Text style={styles.clearBtn}>✕</Text>
+                    </TouchableOpacity>
+                  : null
+              }
             </View>
+            {searchError && (
+              <View style={styles.searchErrBox}>
+                <Text style={styles.searchErrText}>{searchError}</Text>
+              </View>
+            )}
 
             {/* Selected food detail */}
             {selectedFood && (
@@ -552,17 +587,16 @@ export default function NutritionScreen() {
             )}
 
             {/* Results */}
-            {searchResults.length === 0 && searchQuery.trim().length > 0 && !isSearching && (
-              <View style={styles.noResults}>
-                <Text style={styles.noResultsText}>No results for "{searchQuery}"</Text>
-                <Text style={styles.noResultsSub}>Try a different name or spelling</Text>
+            {isSearching && searchResults.length === 0 && (
+              <View style={styles.searchingBox}>
+                <Text style={styles.searchingBoxText}>🔍  Searching USDA + Open Food Facts…</Text>
               </View>
             )}
             {searchResults.map((food, i) => (
               <TouchableOpacity
-                key={i}
-                style={[styles.resultRow, selectedFood?.name === food.name && styles.resultRowSelected]}
-                onPress={() => setSelectedFood(food)}
+                key={food.id ?? i}
+                style={[styles.resultRow, selectedFood?.id === food.id && styles.resultRowSelected]}
+                onPress={() => { setSelectedFood(food); setQuantity('100'); }}
               >
                 {food.image_url ? (
                   <Image source={{ uri: food.image_url }} style={styles.resultThumb} />
@@ -573,7 +607,13 @@ export default function NutritionScreen() {
                 )}
                 <View style={styles.resultInfo}>
                   <Text style={styles.resultName} numberOfLines={2}>{food.name}</Text>
-                  {food.brand && <Text style={styles.resultBrand}>{food.brand}</Text>}
+                  {food.brand
+                    ? <Text style={styles.resultBrand}>{food.brand}</Text>
+                    : <Text style={styles.resultSource}>{food.source}</Text>
+                  }
+                  <Text style={styles.resultMacroLine}>
+                    P {food.protein_per_100g}g · C {food.carbs_per_100g}g · F {food.fat_per_100g}g per 100g
+                  </Text>
                 </View>
                 <View style={styles.resultMacros}>
                   <Text style={styles.resultCal}>{food.calories_per_100g}</Text>
@@ -724,9 +764,16 @@ const styles = StyleSheet.create({
   resultInfo: { flex: 1 },
   resultName: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary },
   resultBrand: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  resultSource: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2, fontStyle: 'italic' },
+  resultMacroLine: { fontSize: 10, color: Colors.textTertiary, marginTop: 2 },
   resultMacros: { alignItems: 'flex-end' },
   resultCal: { fontSize: FontSize.md, fontWeight: '800', color: Colors.primary },
   resultCalLabel: { fontSize: 10, color: Colors.textTertiary },
+  searchingBox: { alignItems: 'center', paddingVertical: Spacing.lg, gap: 6 },
+  searchingBoxText: { fontSize: FontSize.sm, color: Colors.textTertiary, fontStyle: 'italic' },
+  clearBtn: { fontSize: 16, color: Colors.textTertiary, paddingHorizontal: 4 },
+  searchErrBox: { backgroundColor: `${Colors.error}10`, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.sm, borderWidth: 1, borderColor: `${Colors.error}25` },
+  searchErrText: { fontSize: FontSize.sm, color: Colors.error },
   noResults: { alignItems: 'center', paddingVertical: Spacing.xl },
   noResultsText: { fontSize: FontSize.md, fontWeight: '600', color: Colors.textSecondary },
   noResultsSub: { fontSize: FontSize.sm, color: Colors.textTertiary, marginTop: 4 },
