@@ -9,8 +9,10 @@ export const YOUTUBE_API_KEY = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY ?? '';
 // USDA FoodData Central — free API, low sensitivity
 export const USDA_API_KEY = process.env.EXPO_PUBLIC_USDA_API_KEY ?? 'DEMO_KEY';
 
-// ⚠️  OpenAI key is SERVER-ONLY — it lives in Supabase Edge Function secrets,
-//     never in the client bundle. Do NOT add EXPO_PUBLIC_ prefix to OPENAI_API_KEY.
+// OpenAI — primary path is Supabase Edge Function (key stays server-side).
+// EXPO_PUBLIC_OPENAI_API_KEY is a client-side fallback used when the Edge Function
+// is not deployed; key is bundled in the APK (acceptable for a personal-use app).
+export const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? '';
 
 // App
 export const APP_NAME = 'FitLife';

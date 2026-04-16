@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { AIMessage } from '../types';
+import { OPENAI_API_KEY } from '../constants/config';
 
 export interface TrainerContext {
   userProfile: {
@@ -48,6 +49,31 @@ Rules:
 - Keep responses under 150 words unless they ask for detailed guidance
 - For medical concerns, always say "consult your doctor"`;
 
+/** Direct call to OpenAI API — used when the Edge Function is unavailable. */
+async function callOpenAIDirect(apiMessages: { role: string; content: string }[]): Promise<string> {
+  if (!OPENAI_API_KEY) {
+    return "AI Trainer isn't configured yet. Add EXPO_PUBLIC_OPENAI_API_KEY to your .env file.";
+  }
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: apiMessages,
+      max_tokens: 300,
+      temperature: 0.7,
+    }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error?.message ?? `OpenAI error ${response.status}`);
+  }
+  return data.choices?.[0]?.message?.content ?? "Keep going. You've got this.";
+}
+
 export async function chatWithTrainer(
   messages: AIMessage[],
   context: TrainerContext
@@ -76,10 +102,20 @@ ${context.recentPostureErrors?.length ? `- Recent posture notes: ${context.recen
       body: { messages: apiMessages },
     });
 
-    if (error) throw error;
-    return data.reply ?? 'I\'m having trouble connecting right now. Keep going — you\'ve got this.';
+    // Edge Function responded and returned a real reply
+    if (!error && data?.reply && !data.reply.includes('temporarily offline')) {
+      return data.reply;
+    }
+
+    // Edge Function missing/down — fall back to direct API call
+    return await callOpenAIDirect(apiMessages);
   } catch {
-    return 'I\'m temporarily offline, but your workout is still waiting. Tap "Start Workout" to begin.';
+    // Network failure or other error — try direct API as last resort
+    try {
+      return await callOpenAIDirect(apiMessages);
+    } catch {
+      return "I'm temporarily offline. Check your connection and try again.";
+    }
   }
 }
 
