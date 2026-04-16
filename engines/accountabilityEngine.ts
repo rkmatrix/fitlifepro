@@ -218,13 +218,10 @@ export async function checkWeeklyCompletionRate(
     new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
     'yyyy-MM-dd'
   );
-  const { data } = await supabase
-    .from('workout_logs')
-    .select('status')
-    .eq('user_id', userId)
-    .gte('date', sevenDaysAgo);
+  const allLogs = await localDB.get<Array<{ user_id: string; date: string; status: string }>>('workout_logs') ?? [];
+  const data = allLogs.filter((l) => l.user_id === userId && l.date >= sevenDaysAgo);
 
-  if (!data) return;
+  if (!data.length) return;
 
   const completed = data.filter((l) =>
     ['done', 'partial', 'makeup'].includes(l.status)

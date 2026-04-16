@@ -46,6 +46,17 @@
         "EXPO_PUBLIC_APP_ENV": "production",
         "EXPO_PUBLIC_DEMO_MODE": "false"
       }
+    },
+    "internal-ios": {
+      "distribution": "internal",
+      "ios": {
+        "buildConfiguration": "Release",
+        "credentialsSource": "remote"
+      },
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_DEMO_MODE": "false"
+      }
     }
   },
   "submit": {

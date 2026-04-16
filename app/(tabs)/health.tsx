@@ -12,7 +12,7 @@ import { useUserStore } from '../../stores/userStore';
 import { useWorkoutStore } from '../../stores/workoutStore';
 import { SLEEP_TARGET_MIN } from '../../constants/config';
 import { SleepLog } from '../../types';
-import { IS_DEMO, DEMO_HEALTH } from '../../constants/demo';
+
 
 // ─── Sleep bar ────────────────────────────────────────────────────────────────
 function SleepBar({ log }: { log: SleepLog }) {
