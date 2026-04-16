@@ -1,5 +1,5 @@
-import { supabase } from '../lib/supabase';
-import { WeeklyReport, PlanAdjustment } from '../types';
+import { localDB } from '../lib/local-db';
+import { WeeklyReport, PlanAdjustment, WorkoutLog, SleepLog, BodyMetrics, UserProfile } from '../types';
 import { format, subDays } from 'date-fns';
 
 export interface WeeklyData {
@@ -12,62 +12,41 @@ export interface WeeklyData {
   userName: string;
 }
 
-export async function analyzeWeeklyData(userId: string): Promise<WeeklyData> {
+export async function analyzeWeeklyData(_userId: string): Promise<WeeklyData> {
   const weekAgo = format(subDays(new Date(), 7), 'yyyy-MM-dd');
-  const today = format(new Date(), 'yyyy-MM-dd');
 
   // Workout completion
-  const { data: logs } = await supabase
-    .from('workout_logs')
-    .select('status')
-    .eq('user_id', userId)
-    .gte('date', weekAgo);
-
-  const totalExpected = 5;
-  const completed = (logs ?? []).filter((l) =>
-    ['done', 'partial', 'makeup'].includes(l.status)
-  ).length;
-  const completionPct = Math.round((completed / totalExpected) * 100);
+  const logs = await localDB.get<WorkoutLog[]>('workout_logs') ?? [];
+  const weekLogs = logs.filter((l) => l.date >= weekAgo);
+  const completed = weekLogs.filter((l) => ['done', 'partial', 'makeup'].includes(l.status)).length;
+  const completionPct = Math.round((completed / 5) * 100);
 
   // Sleep
-  const { data: sleepLogs } = await supabase
-    .from('sleep_logs')
-    .select('sleep_score')
-    .eq('user_id', userId)
-    .gte('date', weekAgo);
-  const sleepScores = (sleepLogs ?? []).map((s: { sleep_score: number }) => s.sleep_score);
-  const avgSleepScore = sleepScores.length
-    ? Math.round(sleepScores.reduce((a: number, b: number) => a + b, 0) / sleepScores.length)
+  const sleepLogs = await localDB.get<SleepLog[]>('sleep_logs') ?? [];
+  const weekSleep = sleepLogs.filter((l) => l.date >= weekAgo);
+  const avgSleepScore = weekSleep.length
+    ? Math.round(weekSleep.reduce((a, b) => a + (b.sleep_score ?? 0), 0) / weekSleep.length)
     : 0;
 
   // Weight delta
-  const { data: metrics } = await supabase
-    .from('body_metrics')
-    .select('weight_kg, date')
-    .eq('user_id', userId)
-    .gte('date', weekAgo)
-    .order('date', { ascending: true });
-  const weights = (metrics ?? []).map((m: { weight_kg: number }) => m.weight_kg);
+  const metrics = await localDB.get<BodyMetrics[]>('body_metrics') ?? [];
+  const weekMetrics = metrics.filter((m) => m.date >= weekAgo).sort((a, b) => (a.date < b.date ? -1 : 1));
   const weightDeltaKg =
-    weights.length >= 2
-      ? Math.round((weights[weights.length - 1] - weights[0]) * 100) / 100
+    weekMetrics.length >= 2
+      ? Math.round((weekMetrics[weekMetrics.length - 1].weight_kg - weekMetrics[0].weight_kg) * 100) / 100
       : 0;
 
-  // User profile
-  const { data: profile } = await supabase
-    .from('users')
-    .select('phase, week_number, name')
-    .eq('id', userId)
-    .single();
+  // Profile
+  const profile = await localDB.get<UserProfile>('profile');
 
   return {
     completionPct,
-    avgNutritionScore: 70, // Simplified — would calculate from food entries
+    avgNutritionScore: 70,
     weightDeltaKg,
     avgSleepScore,
-    currentPhase: (profile as { phase: number } | null)?.phase ?? 1,
-    currentWeek: (profile as { week_number: number } | null)?.week_number ?? 1,
-    userName: (profile as { name: string } | null)?.name ?? 'Champ',
+    currentPhase: profile?.phase ?? 1,
+    currentWeek: profile?.week_number ?? 1,
+    userName: profile?.name ?? 'Champ',
   };
 }
 
@@ -91,7 +70,7 @@ export function generateAdjustments(data: WeeklyData): PlanAdjustment[] {
   if (data.avgSleepScore < 60) {
     adjustments.push({
       type: 'sleep_focus',
-      description: `Average sleep score ${data.avgSleepScore}. This week's priority is sleep. Cortisol is elevated — it prevents fat loss. Bedtime moved to 10 PM.`,
+      description: `Average sleep score ${data.avgSleepScore}. Priority this week is sleep. Bedtime: 10 PM.`,
       applied_to_week: data.currentWeek + 1,
     });
   }
@@ -99,7 +78,7 @@ export function generateAdjustments(data: WeeklyData): PlanAdjustment[] {
   if (data.weightDeltaKg === 0 && data.currentWeek > 4) {
     adjustments.push({
       type: 'metabolic_reset',
-      description: `Weight plateau detected. Implementing metabolic reset: calorie cycling, new HIIT protocol, and changing exercise order.`,
+      description: `Weight plateau detected. Implementing metabolic reset: calorie cycling, new HIIT protocol.`,
       applied_to_week: data.currentWeek + 1,
     });
   }
@@ -108,13 +87,14 @@ export function generateAdjustments(data: WeeklyData): PlanAdjustment[] {
 }
 
 export async function saveWeeklyReport(
-  userId: string,
+  _userId: string,
   data: WeeklyData,
   aiSummary: string
 ): Promise<WeeklyReport | null> {
   const adjustments = generateAdjustments(data);
-  const report = {
-    user_id: userId,
+  const report: WeeklyReport = {
+    id: `wr_${Date.now()}`,
+    user_id: 'local',
     week_start: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
     completion_pct: data.completionPct,
     avg_nutrition_score: data.avgNutritionScore,
@@ -125,11 +105,7 @@ export async function saveWeeklyReport(
     created_at: new Date().toISOString(),
   };
 
-  const { data: saved } = await supabase
-    .from('weekly_reports')
-    .insert(report)
-    .select()
-    .single();
-
-  return (saved as WeeklyReport | null);
+  const all = await localDB.get<WeeklyReport[]>('weekly_reports') ?? [];
+  await localDB.set('weekly_reports', [report, ...all]);
+  return report;
 }

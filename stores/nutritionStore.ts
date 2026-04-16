@@ -1,14 +1,16 @@
 import { create } from 'zustand';
 import { FoodEntry, DailyNutrition, FoodItem, MealType } from '../types';
-import { supabase } from '../lib/supabase';
+import { localDB } from '../lib/local-db';
 import { format } from 'date-fns';
-import { IS_DEMO, DEMO_NUTRITION } from '../constants/demo';
 import {
   DEFAULT_CALORIE_TARGET,
   DEFAULT_PROTEIN_TARGET,
   DEFAULT_CARB_TARGET,
   DEFAULT_FAT_TARGET,
 } from '../constants/config';
+
+const ENTRIES_KEY = 'food_entries';
+const WATER_KEY   = 'daily_water';
 
 interface NutritionStore {
   today: DailyNutrition;
@@ -22,7 +24,7 @@ interface NutritionStore {
   updateWater: (userId: string, amountMl: number) => Promise<void>;
 }
 
-const emptyToday = (date: string): DailyNutrition => ({
+const emptyDay = (date: string): DailyNutrition => ({
   date,
   calories: 0,
   protein: 0,
@@ -36,134 +38,82 @@ const emptyToday = (date: string): DailyNutrition => ({
   entries: [],
 });
 
+function buildDay(date: string, entries: FoodEntry[], water_ml: number): DailyNutrition {
+  const totals = entries.reduce(
+    (acc, e) => ({
+      calories: acc.calories + e.calories,
+      protein: acc.protein + e.protein,
+      carbs: acc.carbs + e.carbs,
+      fat: acc.fat + e.fat,
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0 }
+  );
+  return {
+    date,
+    ...totals,
+    water_ml,
+    target_calories: DEFAULT_CALORIE_TARGET,
+    target_protein: DEFAULT_PROTEIN_TARGET,
+    target_carbs: DEFAULT_CARB_TARGET,
+    target_fat: DEFAULT_FAT_TARGET,
+    entries,
+  };
+}
+
 export const useNutritionStore = create<NutritionStore>((set, get) => ({
-  today: emptyToday(format(new Date(), 'yyyy-MM-dd')),
+  today: emptyDay(format(new Date(), 'yyyy-MM-dd')),
   history: {},
   recentFoods: [],
 
-  loadToday: async (userId) => {
-    if (IS_DEMO) { set({ today: DEMO_NUTRITION }); return; }
+  loadToday: async (_userId) => {
     const date = format(new Date(), 'yyyy-MM-dd');
-    const { data } = await supabase
-      .from('food_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('date', date);
-
-    const entries = (data ?? []) as FoodEntry[];
-    const totals = entries.reduce(
-      (acc, e) => ({
-        calories: acc.calories + e.calories,
-        protein: acc.protein + e.protein,
-        carbs: acc.carbs + e.carbs,
-        fat: acc.fat + e.fat,
-      }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0 }
-    );
-
-    const { data: waterData } = await supabase
-      .from('daily_water')
-      .select('amount_ml')
-      .eq('user_id', userId)
-      .eq('date', date)
-      .maybeSingle();
-
-    set({
-      today: {
-        date,
-        ...totals,
-        water_ml: (waterData as { amount_ml: number } | null)?.amount_ml ?? 0,
-        target_calories: DEFAULT_CALORIE_TARGET,
-        target_protein: DEFAULT_PROTEIN_TARGET,
-        target_carbs: DEFAULT_CARB_TARGET,
-        target_fat: DEFAULT_FAT_TARGET,
-        entries,
-      },
-    });
+    const allEntries = await localDB.get<FoodEntry[]>(ENTRIES_KEY) ?? [];
+    const entries = allEntries.filter((e) => e.date === date);
+    const waterMap = await localDB.get<Record<string, number>>(WATER_KEY) ?? {};
+    set({ today: buildDay(date, entries, waterMap[date] ?? 0) });
   },
 
-  loadForDate: async (userId, date) => {
-    const { data } = await supabase
-      .from('food_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('date', date);
-
-    const entries = (data ?? []) as FoodEntry[];
-    const totals = entries.reduce(
-      (acc, e) => ({
-        calories: acc.calories + e.calories,
-        protein: acc.protein + e.protein,
-        carbs: acc.carbs + e.carbs,
-        fat: acc.fat + e.fat,
-      }),
-      { calories: 0, protein: 0, carbs: 0, fat: 0 }
-    );
-
-    const { data: waterData } = await supabase
-      .from('daily_water')
-      .select('amount_ml')
-      .eq('user_id', userId)
-      .eq('date', date)
-      .maybeSingle();
-
-    const dayNutrition: DailyNutrition = {
-      date,
-      ...totals,
-      water_ml: (waterData as { amount_ml: number } | null)?.amount_ml ?? 0,
-      target_calories: DEFAULT_CALORIE_TARGET,
-      target_protein: DEFAULT_PROTEIN_TARGET,
-      target_carbs: DEFAULT_CARB_TARGET,
-      target_fat: DEFAULT_FAT_TARGET,
-      entries,
-    };
-
+  loadForDate: async (_userId, date) => {
+    const allEntries = await localDB.get<FoodEntry[]>(ENTRIES_KEY) ?? [];
+    const entries = allEntries.filter((e) => e.date === date);
+    const waterMap = await localDB.get<Record<string, number>>(WATER_KEY) ?? {};
+    const dayNutrition = buildDay(date, entries, waterMap[date] ?? 0);
     set((s) => ({ history: { ...s.history, [date]: dayNutrition } }));
     return dayNutrition;
   },
 
-  logFood: async (userId, entry) => {
+  logFood: async (_userId, entry) => {
     const newEntry: FoodEntry = {
       ...entry,
-      id: `entry_${Date.now()}`,
+      id: `fe_${Date.now()}`,
       logged_at: entry.logged_at ?? new Date().toISOString(),
     };
-    if (!IS_DEMO) {
-      const { data } = await supabase.from('food_entries').insert(newEntry).select().single();
-      if (!data) return;
-      const inserted = data as FoodEntry;
-      const { today } = get();
+    const allEntries = await localDB.get<FoodEntry[]>(ENTRIES_KEY) ?? [];
+    await localDB.set(ENTRIES_KEY, [...allEntries, newEntry]);
+
+    const { today } = get();
+    if (newEntry.date === today.date) {
       set({
         today: {
           ...today,
-          calories: today.calories + inserted.calories,
-          protein: today.protein + inserted.protein,
-          carbs: today.carbs + inserted.carbs,
-          fat: today.fat + inserted.fat,
-          entries: [...today.entries, inserted],
+          calories: today.calories + newEntry.calories,
+          protein: today.protein + newEntry.protein,
+          carbs: today.carbs + newEntry.carbs,
+          fat: today.fat + newEntry.fat,
+          entries: [...today.entries, newEntry],
         },
       });
-      return;
     }
-    // Demo: update local state only
-    const { today } = get();
-    set({
-      today: {
-        ...today,
-        calories: today.calories + newEntry.calories,
-        protein: today.protein + newEntry.protein,
-        carbs: today.carbs + newEntry.carbs,
-        fat: today.fat + newEntry.fat,
-        entries: [...today.entries, newEntry],
-      },
-    });
   },
 
   removeFood: async (entryId) => {
     const { today } = get();
     const removed = today.entries.find((e) => e.id === entryId);
     if (!removed) return;
-    if (!IS_DEMO) await supabase.from('food_entries').delete().eq('id', entryId);
+
+    const allEntries = await localDB.get<FoodEntry[]>(ENTRIES_KEY) ?? [];
+    await localDB.set(ENTRIES_KEY, allEntries.filter((e) => e.id !== entryId));
+
     set({
       today: {
         ...today,
@@ -176,14 +126,11 @@ export const useNutritionStore = create<NutritionStore>((set, get) => ({
     });
   },
 
-  updateWater: async (userId, amountMl) => {
+  updateWater: async (_userId, amountMl) => {
     const date = format(new Date(), 'yyyy-MM-dd');
-    if (!IS_DEMO) {
-      await supabase.from('daily_water').upsert(
-        { user_id: userId, date, amount_ml: amountMl },
-        { onConflict: 'user_id,date' }
-      );
-    }
+    const waterMap = await localDB.get<Record<string, number>>(WATER_KEY) ?? {};
+    waterMap[date] = amountMl;
+    await localDB.set(WATER_KEY, waterMap);
     set({ today: { ...get().today, water_ml: amountMl } });
   },
 }));

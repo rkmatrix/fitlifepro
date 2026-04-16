@@ -1,8 +1,11 @@
 import { create } from 'zustand';
 import { SleepLog, HealthMetrics, BodyMetrics } from '../types';
-import { supabase } from '../lib/supabase';
+import { localDB } from '../lib/local-db';
 import { format } from 'date-fns';
-import { IS_DEMO, DEMO_SLEEP, DEMO_HEALTH, DEMO_BODY_METRICS, DEMO_SLEEP_HISTORY } from '../constants/demo';
+
+const SLEEP_KEY   = 'sleep_logs';
+const HEALTH_KEY  = 'health_metrics';
+const BODY_KEY    = 'body_metrics';
 
 interface HealthStore {
   todaySleep: SleepLog | null;
@@ -19,12 +22,9 @@ interface HealthStore {
   logSleepManual: (userId: string, bedtime: Date, wakeTime: Date) => Promise<void>;
 }
 
-function calculateSleepScore(durationMin: number): number {
-  // Based on sleep duration vs optimal 7–8 hours
-  const optimal = 450; // 7.5 hours
-  const diff = Math.abs(durationMin - optimal);
-  const score = Math.max(0, 100 - diff * 0.3);
-  return Math.round(score);
+function calcSleepScore(durationMin: number): number {
+  const optimal = 450;
+  return Math.max(0, Math.round(100 - Math.abs(durationMin - optimal) * 0.3));
 }
 
 export const useHealthStore = create<HealthStore>((set) => ({
@@ -34,84 +34,61 @@ export const useHealthStore = create<HealthStore>((set) => ({
   bodyMetrics: [],
   latestBodyMetrics: null,
 
-  loadTodaySleep: async (userId) => {
-    if (IS_DEMO) { set({ todaySleep: DEMO_SLEEP }); return; }
+  loadTodaySleep: async (_userId) => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    const { data } = await supabase
-      .from('sleep_logs')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('date', today)
-      .maybeSingle();
-    set({ todaySleep: (data as SleepLog | null) });
+    const logs = await localDB.get<SleepLog[]>(SLEEP_KEY) ?? [];
+    set({ todaySleep: logs.find((l) => l.date === today) ?? null });
   },
 
-  loadSleepHistory: async (userId, days = 30) => {
-    if (IS_DEMO) { set({ sleepHistory: DEMO_SLEEP_HISTORY }); return; }
-    const cutoff = format(
-      new Date(Date.now() - days * 24 * 60 * 60 * 1000),
-      'yyyy-MM-dd'
-    );
-    const { data } = await supabase
-      .from('sleep_logs')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('date', cutoff)
-      .order('date', { ascending: false });
-    set({ sleepHistory: (data ?? []) as SleepLog[] });
+  loadSleepHistory: async (_userId, days = 30) => {
+    const cutoff = format(new Date(Date.now() - days * 86400000), 'yyyy-MM-dd');
+    const logs = await localDB.get<SleepLog[]>(SLEEP_KEY) ?? [];
+    set({
+      sleepHistory: logs
+        .filter((l) => l.date >= cutoff)
+        .sort((a, b) => (a.date < b.date ? 1 : -1)),
+    });
   },
 
-  loadHealthMetrics: async (userId) => {
-    if (IS_DEMO) { set({ todayHealth: DEMO_HEALTH }); return; }
+  loadHealthMetrics: async (_userId) => {
     const today = format(new Date(), 'yyyy-MM-dd');
-    const { data } = await supabase
-      .from('health_metrics')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('date', today)
-      .maybeSingle();
-    set({ todayHealth: (data as HealthMetrics | null) });
+    const all = await localDB.get<HealthMetrics[]>(HEALTH_KEY) ?? [];
+    set({ todayHealth: all.find((h) => h.date === today) ?? null });
   },
 
-  loadBodyMetrics: async (userId) => {
-    if (IS_DEMO) {
-      set({ bodyMetrics: DEMO_BODY_METRICS, latestBodyMetrics: DEMO_BODY_METRICS[0] ?? null });
-      return;
-    }
-    const { data } = await supabase
-      .from('body_metrics')
-      .select('*')
-      .eq('user_id', userId)
-      .order('date', { ascending: false })
-      .limit(60);
-    const metrics = (data ?? []) as BodyMetrics[];
-    set({ bodyMetrics: metrics, latestBodyMetrics: metrics[0] ?? null });
+  loadBodyMetrics: async (_userId) => {
+    const all = await localDB.get<BodyMetrics[]>(BODY_KEY) ?? [];
+    const sorted = all.sort((a, b) => (a.date < b.date ? 1 : -1));
+    set({ bodyMetrics: sorted, latestBodyMetrics: sorted[0] ?? null });
   },
 
-  logBodyMetrics: async (userId, metrics) => {
-    const { data } = await supabase
-      .from('body_metrics')
-      .insert({ user_id: userId, ...metrics })
-      .select()
-      .single();
-    if (data) {
-      const all = [data as BodyMetrics, ...useHealthStore.getState().bodyMetrics];
-      set({ bodyMetrics: all, latestBodyMetrics: data as BodyMetrics });
-    }
+  logBodyMetrics: async (_userId, metrics) => {
+    const newEntry: BodyMetrics = {
+      ...metrics,
+      id: `bm_${Date.now()}`,
+      user_id: 'local',
+    };
+    const all = await localDB.get<BodyMetrics[]>(BODY_KEY) ?? [];
+    const updated = [newEntry, ...all.filter((m) => m.date !== metrics.date)];
+    await localDB.set(BODY_KEY, updated);
+    set({ bodyMetrics: updated, latestBodyMetrics: newEntry });
   },
 
-  logSleepManual: async (userId, bedtime, wakeTime) => {
+  logSleepManual: async (_userId, bedtime, wakeTime) => {
     const durationMin = Math.round((wakeTime.getTime() - bedtime.getTime()) / 60000);
-    const log: Omit<SleepLog, 'id'> = {
-      user_id: userId,
+    const log: SleepLog = {
+      id: `sl_${Date.now()}`,
+      user_id: 'local',
       date: format(wakeTime, 'yyyy-MM-dd'),
       duration_min: durationMin,
-      sleep_score: calculateSleepScore(durationMin),
+      sleep_score: calcSleepScore(durationMin),
       bedtime: bedtime.toISOString(),
       wake_time: wakeTime.toISOString(),
       source: 'manual',
     };
-    const { data } = await supabase.from('sleep_logs').insert(log).select().single();
-    if (data) set({ todaySleep: data as SleepLog });
+    const all = await localDB.get<SleepLog[]>(SLEEP_KEY) ?? [];
+    const updated = [log, ...all.filter((l) => l.date !== log.date)];
+    await localDB.set(SLEEP_KEY, updated);
+    set({ todaySleep: log });
   },
 }));

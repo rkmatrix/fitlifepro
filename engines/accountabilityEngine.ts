@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { WorkoutStatus, WorkoutVariant, WorkoutDay } from '../types';
 import { format, parseISO } from 'date-fns';
-import { supabase } from '../lib/supabase';
+import { localDB } from '../lib/local-db';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -96,15 +96,20 @@ async function sendNudge(
     trigger: null, // immediate
   });
 
-  // Log to Supabase
-  await supabase.from('accountability_events').insert({
-    user_id: userId,
-    date: format(new Date(), 'yyyy-MM-dd'),
-    event_type: eventType,
-    message_sent: `${title}: ${body}`,
-    acted_on: false,
-    created_at: new Date().toISOString(),
-  });
+  // Log locally
+  const events = await localDB.get<object[]>('accountability_events') ?? [];
+  await localDB.set('accountability_events', [
+    ...events,
+    {
+      id: `ae_${Date.now()}`,
+      user_id: userId,
+      date: format(new Date(), 'yyyy-MM-dd'),
+      event_type: eventType,
+      message_sent: `${title}: ${body}`,
+      acted_on: false,
+      created_at: new Date().toISOString(),
+    },
+  ]);
 }
 
 // ─── Scheduled Daily Notifications ───────────────────────────────────────────

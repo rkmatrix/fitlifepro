@@ -9,7 +9,7 @@ import { Colors, Spacing, FontSize, BorderRadius } from '../../constants/theme';
 import { Card } from '../../components/shared/Card';
 import { Button } from '../../components/shared/Button';
 import { router } from 'expo-router';
-import { supabase } from '../../lib/supabase';
+import { localDB } from '../../lib/local-db';
 import { createCustomVideoFromUrl, extractYouTubeId, getYouTubeThumbnail } from '../../lib/youtube';
 import { useUserStore } from '../../stores/userStore';
 import { CustomVideo, VideoTag } from '../../types';
@@ -32,12 +32,8 @@ export default function VideoLibraryScreen() {
 
   const loadVideos = async () => {
     if (!profile) return;
-    const { data } = await supabase
-      .from('custom_videos')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('added_at', { ascending: false });
-    setVideos((data ?? []) as CustomVideo[]);
+    const all = await localDB.get<CustomVideo[]>('custom_videos') ?? [];
+    setVideos(all.filter((v) => v.user_id === profile.id).sort((a, b) => (a.added_at < b.added_at ? 1 : -1)));
   };
 
   const handleAddVideo = async () => {
@@ -49,13 +45,13 @@ export default function VideoLibraryScreen() {
         Alert.alert('Invalid URL', 'Please paste a valid YouTube URL.');
         return;
       }
-      const { data } = await supabase.from('custom_videos').insert(videoData).select().single();
-      if (data) {
-        setVideos((prev) => [data as CustomVideo, ...prev]);
-        setAddModalVisible(false);
-        setNewUrl('');
-        setNewTags([]);
-      }
+      const all = await localDB.get<CustomVideo[]>('custom_videos') ?? [];
+      const newVideo: CustomVideo = { ...videoData, id: `cv_${Date.now()}` };
+      await localDB.set('custom_videos', [newVideo, ...all]);
+      setVideos((prev) => [newVideo, ...prev]);
+      setAddModalVisible(false);
+      setNewUrl('');
+      setNewTags([]);
     } finally {
       setIsAdding(false);
     }
@@ -68,7 +64,8 @@ export default function VideoLibraryScreen() {
         text: 'Remove',
         style: 'destructive',
         onPress: async () => {
-          await supabase.from('custom_videos').delete().eq('id', id);
+          const all = await localDB.get<CustomVideo[]>('custom_videos') ?? [];
+          await localDB.set('custom_videos', all.filter((v) => v.id !== id));
           setVideos((prev) => prev.filter((v) => v.id !== id));
         },
       },

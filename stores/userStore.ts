@@ -1,34 +1,18 @@
 import { create } from 'zustand';
-import { Platform } from 'react-native';
 import { UserProfile } from '../types';
-import { supabase } from '../lib/supabase';
-import { IS_DEMO, DEMO_PROFILE } from '../constants/demo';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../constants/config';
+import { localDB } from '../lib/local-db';
 
-const AUTH_TIMEOUT_MS = 12_000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error('timeout')), ms);
-    promise
-      .then((v) => {
-        clearTimeout(t);
-        resolve(v);
-      })
-      .catch((e) => {
-        clearTimeout(t);
-        reject(e);
-      });
-  });
-}
+const PROFILE_KEY = 'profile';
 
 interface UserStore {
   profile: UserProfile | null;
   isLoading: boolean;
   isOnboarded: boolean;
-  setProfile: (profile: UserProfile) => void;
+  setProfile: (profile: UserProfile) => Promise<void>;
   loadProfile: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  resetProfile: () => Promise<void>;
+  // kept for backward compat with any remaining call sites
   logout: () => Promise<void>;
 }
 
@@ -37,54 +21,23 @@ export const useUserStore = create<UserStore>((set, get) => ({
   isLoading: true,
   isOnboarded: false,
 
-  setProfile: (profile) => set({ profile, isOnboarded: true }),
+  setProfile: async (profile) => {
+    await localDB.set(PROFILE_KEY, profile);
+    set({ profile, isOnboarded: true });
+  },
 
   loadProfile: async () => {
-    const failsafe = setTimeout(() => {
-      set((s) => (s.isLoading ? { isLoading: false } : s));
-    }, 15_000);
-
+    set({ isLoading: true });
     try {
-      set({ isLoading: true });
-      if (IS_DEMO) {
-        set({ profile: DEMO_PROFILE, isOnboarded: true });
-        return;
-      }
-      if (!SUPABASE_URL?.trim() || !SUPABASE_ANON_KEY?.trim()) {
-        set({ profile: null, isOnboarded: false });
-        return;
-      }
-      try {
-        const { data: sessionData, error: sessionErr } = await withTimeout(
-          supabase.auth.getSession(),
-          AUTH_TIMEOUT_MS
-        );
-        if (sessionErr) throw sessionErr;
-        const user = sessionData.session?.user;
-        if (!user) {
-          // On web: skip login — load demo profile so the app is browsable
-          if (Platform.OS === 'web') {
-            set({ profile: DEMO_PROFILE, isOnboarded: true });
-          } else {
-            set({ profile: null, isOnboarded: false });
-          }
-          return;
-        }
-        const { data, error } = await withTimeout(
-          supabase.from('users').select('*').eq('id', user.id).maybeSingle(),
-          AUTH_TIMEOUT_MS
-        );
-        if (error) throw error;
-        if (data) {
-          set({ profile: data as UserProfile, isOnboarded: true });
-        } else {
-          set({ profile: null, isOnboarded: false });
-        }
-      } catch {
+      const profile = await localDB.get<UserProfile>(PROFILE_KEY);
+      if (profile) {
+        set({ profile, isOnboarded: true });
+      } else {
         set({ profile: null, isOnboarded: false });
       }
+    } catch {
+      set({ profile: null, isOnboarded: false });
     } finally {
-      clearTimeout(failsafe);
       set({ isLoading: false });
     }
   },
@@ -94,13 +47,16 @@ export const useUserStore = create<UserStore>((set, get) => ({
     if (!profile) return;
     const updated = { ...profile, ...updates };
     set({ profile: updated });
-    if (!IS_DEMO) {
-      await supabase.from('users').update(updates).eq('id', profile.id);
-    }
+    await localDB.set(PROFILE_KEY, updated);
+  },
+
+  resetProfile: async () => {
+    await localDB.clearAll();
+    set({ profile: null, isOnboarded: false });
   },
 
   logout: async () => {
-    if (!IS_DEMO) await supabase.auth.signOut();
-    set({ profile: null, isOnboarded: false });
+    // No-op: kept for any residual call sites.
+    // To reset the app fully, call resetProfile() instead.
   },
 }));
