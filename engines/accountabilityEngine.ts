@@ -154,11 +154,10 @@ async function scheduleDaily(
   await Notifications.scheduleNotificationAsync({
     content: { title, body, sound: true },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+      type: Notifications.SchedulableTriggerInputTypes.DAILY,
       hour,
       minute,
-      repeats: true,
-    } as Notifications.CalendarTriggerInput,
+    } as Notifications.DailyTriggerInput,
   });
 }
 
@@ -172,12 +171,11 @@ async function scheduleWeekly(
   await Notifications.scheduleNotificationAsync({
     content: { title, body, sound: true },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-      weekday: weekday + 1, // Expo uses 1-based
+      type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+      weekday: weekday + 1, // Expo uses 1-based (1=Sunday)
       hour,
       minute,
-      repeats: true,
-    } as Notifications.CalendarTriggerInput,
+    } as Notifications.WeeklyTriggerInput,
   });
 }
 
