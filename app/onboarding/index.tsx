@@ -213,10 +213,12 @@ export default function OnboardingScreen() {
           if (!authData.user) throw new Error('Account created — please check your email to confirm.');
           userId = authData.user.id;
         } else {
-          // Social auth: user is already authenticated, get their ID
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error('Authentication session not found. Please sign in again.');
-          userId = user.id;
+          // Social auth: session was just established by auth/callback.
+          // Use getSession() (local storage read) rather than getUser() (network)
+          // so an offline or slow network can't block profile creation.
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user) throw new Error('Authentication session not found. Please sign in again.');
+          userId = session.user.id;
         }
       }
 
