@@ -14,14 +14,50 @@ function findExercise(id: string): Exercise | null {
 }
 
 /**
- * Build a YouTube embedded search URL for an exercise.
- * Uses YouTube's built-in listType=search embed — no API key, no CORS,
- * always returns results instantly.
+ * Verified-working YouTube video IDs (tested via oEmbed — embedding allowed).
+ * Yoga poses are excluded because YouTube restricts embedding for most yoga content.
  */
-function getVideoEmbedUrl(exerciseName: string): string {
-  const query = exerciseName.replace(/[()]/g, '').trim() + ' exercise tutorial';
-  const encoded = encodeURIComponent(query);
-  return `https://www.youtube.com/embed?listType=search&list=${encoded}&autoplay=1&rel=0&modestbranding=1`;
+const EXERCISE_VIDEO_IDS: Record<string, string> = {
+  pushup:               'IODxDxX7oi4', // The Perfect Push Up
+  db_shoulder_press:    'qEwKCR5JCog', // How To: Dumbbell Shoulder Press
+  lateral_raise:        '3VcKaXpzqRo', // How To: Dumbbell Side Lateral Raise
+  tricep_dip:           '0326dy_-CzM', // How to Do Triceps Bench Dips
+  wall_plank:           'ASdvN_XEl_c', // Planks for Beginners
+  db_bench_press:       'VmB1G1K7v94', // How To: Dumbbell Chest Press
+  arnold_press:         '6Z15_WdXmVw', // Arnold Press Proper Form Tutorial
+  bodyweight_squat:     'aclHkVaku9U', // Squats for Beginners
+  reverse_lunge:        'wrwwXE_x-pQ', // How To Do A Lunge
+  glute_bridge:         'OUgsJ8-Vi0E', // How to Perform the Perfect Glute Bridge
+  calf_raise:           'c5Kv6-fnTj8', // Calf Raises
+  dead_bug:             'g_BYB0R-4Ws', // Core Exercise: Dead Bug
+  romanian_deadlift:    'hCDzSR6bW10', // Deadlift Form Checklist
+  bulgarian_split_squat:'2C-uNgKwPLE', // How To: Bulgarian Split Squat
+  barbell_squat:        'SW_C1A-rejs', // How To: Deep Barbell Back Squat
+  resistance_band_row:  'GZbfZ033f74', // Seated Low Row
+  db_bent_row:          'pYcpY20QaE8', // How To: Dumbbell Bent-Over Row
+  face_pull:            'eIq5CB9JfKE', // Face Pulls
+  bicep_curl:           'ykJmrZ5v0Oo', // How to Do a Dumbbell Biceps Curl
+  plank:                'ASdvN_XEl_c', // Planks for Beginners
+  pullup:               'eGo4IYlbE5g', // The Perfect Pull Up
+  deadlift:             'ytGaGIn3SjE', // How to Perform the Deadlift
+  burpee:               'dZgVxmf6jkA', // Burpees for Beginners
+  jump_squat:           'CVaEhXotL7M', // Squat Jumps
+  mountain_climber:     'nmwgirgXLYM', // How to Do a Mountain Climber
+  surya_namaskar:       '73sjOu0g58M', // Traditional Sun Salutation
+  // warrior_1, warrior_2, pigeon_pose → embedding disabled; fallback to YouTube search
+  box_breathing:        'tEmt1Znux58', // Box Breathing Relaxation Technique
+  body_scan_meditation: '6p_yaNFSYao', // Mindfulness Meditation Guided 10 Min
+  zumba_routine:        'UBMk30rjy0o', // 20 Min Full Body Workout
+};
+
+function getVideoEmbedUrl(exerciseId: string): string | null {
+  const videoId = EXERCISE_VIDEO_IDS[exerciseId];
+  if (!videoId) return null;
+  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+}
+
+function getYouTubeSearchUrl(exerciseName: string): string {
+  return `https://www.youtube.com/results?search_query=${encodeURIComponent(exerciseName + ' exercise tutorial')}`;
 }
 
 function formatTime(sec: number): string {
@@ -89,9 +125,8 @@ export default function WorkoutDetailScreen() {
     setShowVideo(true);
   };
 
-  const videoEmbedUri = exercise
-    ? getVideoEmbedUrl(exercise.name)
-    : null;
+  const videoEmbedUri = getVideoEmbedUrl(exercise.id);
+  const youtubeSearchUrl = getYouTubeSearchUrl(exercise.name);
 
   const difficultyColor = {
     beginner: Colors.done,
@@ -289,12 +324,28 @@ export default function WorkoutDetailScreen() {
             <View style={styles.videoFrame}>
               {videoEmbedUri ? (
                 <VideoPlayer uri={videoEmbedUri} />
-              ) : null}
+              ) : (
+                <View style={styles.videoFallback}>
+                  <Text style={styles.videoFallbackIcon}>▶</Text>
+                  <Text style={styles.videoFallbackTitle}>Watch on YouTube</Text>
+                  <Text style={styles.videoFallbackSub}>Tap below to find a tutorial for {exercise.name}</Text>
+                  <TouchableOpacity
+                    style={styles.watchOnYTBtn}
+                    onPress={() => {
+                      if (typeof window !== 'undefined') {
+                        window.open(youtubeSearchUrl, '_blank');
+                      }
+                    }}
+                  >
+                    <Text style={styles.watchOnYTBtnText}>🔍 Search on YouTube</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             <View style={styles.modalFooter}>
               <Text style={styles.modalFooterText}>
-                Showing YouTube tutorials for "{exercise.name}"
+                Tutorial for "{exercise.name}"
               </Text>
             </View>
           </View>
@@ -422,12 +473,12 @@ const styles = StyleSheet.create({
   modalCloseText: { fontSize: 14, color: Colors.textSecondary, fontWeight: '700' },
 
   videoFrame: { height: 400, backgroundColor: '#000' },
-  videoPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#111' },
-  videoPlaceholderText: { color: '#aaa', fontSize: FontSize.sm, marginTop: Spacing.xs },
-  videoErrorIcon: { fontSize: 36 },
-  videoErrorText: { color: '#aaa', fontSize: FontSize.sm },
-  retryBtn: { marginTop: Spacing.xs, backgroundColor: Colors.primary, borderRadius: BorderRadius.full, paddingHorizontal: 20, paddingVertical: 8 },
-  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: FontSize.sm },
+  videoFallback: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, backgroundColor: '#111', padding: Spacing.xl },
+  videoFallbackIcon: { fontSize: 48, color: '#FF0000' },
+  videoFallbackTitle: { fontSize: FontSize.lg, fontWeight: '800', color: '#fff' },
+  videoFallbackSub: { fontSize: FontSize.sm, color: '#aaa', textAlign: 'center', lineHeight: 20 },
+  watchOnYTBtn: { marginTop: Spacing.sm, backgroundColor: '#FF0000', borderRadius: BorderRadius.full, paddingHorizontal: 24, paddingVertical: 12 },
+  watchOnYTBtnText: { color: '#fff', fontWeight: '700', fontSize: FontSize.sm },
 
   modalFooter: { padding: Spacing.sm, backgroundColor: Colors.background },
   modalFooterText: { fontSize: FontSize.xs, color: Colors.textTertiary, textAlign: 'center', lineHeight: 18 },
