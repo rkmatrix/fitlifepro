@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
@@ -33,17 +33,23 @@ export default function RootLayout() {
   }, [loadProfile]);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F4F6F9' } }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="onboarding/index" options={{ headerShown: false, animation: 'fade' }} />
-          <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
-          <Stack.Screen name="auth/reset-password" options={{ headerShown: false }} />
-          <Stack.Screen name="workout" options={{ headerShown: false }} />
-        </Stack>
-      </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: Platform.OS === 'web' ? '#0f0f1a' : undefined }}>
+      {/* On web: center a phone-width column; on native: fill the screen */}
+      <View style={Platform.OS === 'web'
+        ? { flex: 1, width: '100%', maxWidth: 430, alignSelf: 'center' as const, overflow: 'hidden' as any, boxShadow: '0 0 40px rgba(0,0,0,0.5)' } as any
+        : { flex: 1 }
+      }>
+        <SafeAreaProvider>
+          <StatusBar style="auto" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F4F6F9' } }}>
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="onboarding/index" options={{ headerShown: false, animation: 'fade' }} />
+            <Stack.Screen name="auth/callback" options={{ headerShown: false }} />
+            <Stack.Screen name="auth/reset-password" options={{ headerShown: false }} />
+            <Stack.Screen name="workout" options={{ headerShown: false }} />
+          </Stack>
+        </SafeAreaProvider>
+      </View>
     </GestureHandlerRootView>
   );
 }
