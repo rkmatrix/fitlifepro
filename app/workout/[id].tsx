@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
@@ -13,52 +13,58 @@ function findExercise(id: string): Exercise | null {
   return EXERCISES[id] ?? null;
 }
 
-/** Fetch a YouTube video ID for an exercise */
+/** Fetch a YouTube video ID for an exercise using the YouTube Data API v3 */
 async function fetchVideoId(exerciseName: string): Promise<string | null> {
   const q = encodeURIComponent(`${exerciseName} exercise how to form tutorial`);
-  const ytUrl = `https://www.youtube.com/results?search_query=${q}`;
 
-  // On native, fetch YouTube directly — no CORS restriction
-  if (Platform.OS !== 'web') {
+  // ── 1. YouTube Data API v3 search (most reliable) ──────────────────────────
+  const apiKey = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
+  if (apiKey) {
     try {
-      const res = await fetch(ytUrl, {
-        signal: AbortSignal.timeout(10000),
-        headers: { 'User-Agent': 'Mozilla/5.0 (Android 14) AppleWebKit/537.36' },
-      });
+      const res = await fetch(
+        `https://www.googleapis.com/youtube/v3/search` +
+        `?q=${q}&part=id&type=video&maxResults=1&key=${apiKey}`,
+        { signal: AbortSignal.timeout(8000) },
+      );
       if (res.ok) {
-        const html = await res.text();
-        const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-        if (match?.[1]) return match[1];
+        const data = await res.json();
+        const videoId = data?.items?.[0]?.id?.videoId as string | undefined;
+        if (videoId) return videoId;
       }
     } catch { /* fall through */ }
   }
 
-  // On web (or if native fetch failed), use corsproxy.io
+  // ── 2. YouTube oEmbed trick — works without API key and without CORS ────────
+  // We use the YouTube search URL and read the canonical URL from oEmbed
   try {
-    const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(ytUrl)}`;
-    const res = await fetch(proxyUrl, {
-      signal: AbortSignal.timeout(10000),
-      headers: { Accept: 'text/html' },
-    });
-    if (res.ok) {
-      const html = await res.text();
-      const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-      if (match?.[1]) return match[1];
+    const searchUrl = `https://www.youtube.com/results?search_query=${q}`;
+    const oembed = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(searchUrl)}&format=json`,
+      { signal: AbortSignal.timeout(6000) },
+    );
+    if (oembed.ok) {
+      const data = await oembed.json();
+      // oembed for search pages often returns the top result thumbnail url containing the video id
+      const thumbUrl: string = data?.thumbnail_url ?? '';
+      const m = thumbUrl.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
+      if (m?.[1]) return m[1];
     }
   } catch { /* fall through */ }
 
-  // Second fallback proxy
+  // ── 3. allorigins.win proxy fallback ────────────────────────────────────────
   try {
-    const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(ytUrl)}`, {
-      signal: AbortSignal.timeout(10000),
-    });
+    const ytUrl = `https://www.youtube.com/results?search_query=${q}`;
+    const res = await fetch(
+      `https://api.allorigins.win/get?url=${encodeURIComponent(ytUrl)}`,
+      { signal: AbortSignal.timeout(10000) },
+    );
     if (res.ok) {
       const data = await res.json();
       const html: string = data?.contents ?? '';
       const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
       if (match?.[1]) return match[1];
     }
-  } catch { /* nothing worked */ }
+  } catch { /* fall through */ }
 
   return null;
 }
