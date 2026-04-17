@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
@@ -13,66 +13,15 @@ function findExercise(id: string): Exercise | null {
   return EXERCISES[id] ?? null;
 }
 
-// Public Invidious instances — tried in order until one responds
-const INVIDIOUS_INSTANCES = [
-  'https://invidious.privacyredirect.com',
-  'https://inv.tux.pizza',
-  'https://invidious.nerdvpn.de',
-  'https://yt.cdaut.de',
-];
-
-/** Fetch a YouTube video ID for an exercise (no API key required) */
-async function fetchVideoId(exerciseName: string): Promise<string | null> {
-  const q = encodeURIComponent(`${exerciseName} exercise how to tutorial`);
-
-  // ── 1. Invidious public API — free, no key, proper CORS ──────────────────
-  for (const host of INVIDIOUS_INSTANCES) {
-    try {
-      const res = await fetch(
-        `${host}/api/v1/search?q=${q}&type=video&fields=videoId&page=1`,
-        { signal: AbortSignal.timeout(6000) },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const videoId = (data as { videoId?: string }[])?.[0]?.videoId;
-        if (videoId) return videoId;
-      }
-    } catch { /* try next instance */ }
-  }
-
-  // ── 2. YouTube Data API v3 (only if a real key is configured) ────────────
-  const apiKey = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
-  if (apiKey && apiKey.length > 10 && !apiKey.endsWith('...')) {
-    try {
-      const res = await fetch(
-        `https://www.googleapis.com/youtube/v3/search` +
-        `?q=${q}&part=id&type=video&maxResults=1&key=${apiKey}`,
-        { signal: AbortSignal.timeout(8000) },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const videoId = data?.items?.[0]?.id?.videoId as string | undefined;
-        if (videoId) return videoId;
-      }
-    } catch { /* fall through */ }
-  }
-
-  // ── 3. allorigins.win proxy — last resort ────────────────────────────────
-  try {
-    const ytUrl = `https://www.youtube.com/results?search_query=${q}`;
-    const res = await fetch(
-      `https://api.allorigins.win/get?url=${encodeURIComponent(ytUrl)}`,
-      { signal: AbortSignal.timeout(10000) },
-    );
-    if (res.ok) {
-      const data = await res.json();
-      const html: string = data?.contents ?? '';
-      const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-      if (match?.[1]) return match[1];
-    }
-  } catch { /* nothing worked */ }
-
-  return null;
+/**
+ * Build a YouTube embedded search URL for an exercise.
+ * Uses YouTube's built-in listType=search embed — no API key, no CORS,
+ * always returns results instantly.
+ */
+function getVideoEmbedUrl(exerciseName: string): string {
+  const query = exerciseName.replace(/[()]/g, '').trim() + ' exercise tutorial';
+  const encoded = encodeURIComponent(query);
+  return `https://www.youtube.com/embed?listType=search&list=${encoded}&autoplay=1&rel=0&modestbranding=1`;
 }
 
 function formatTime(sec: number): string {
@@ -88,9 +37,6 @@ export default function WorkoutDetailScreen() {
 
   // Video state
   const [showVideo, setShowVideo] = useState(false);
-  const [videoId, setVideoId] = useState<string | null>(null);
-  const [videoLoading, setVideoLoading] = useState(false);
-  const [videoError, setVideoError] = useState(false);
 
   // Rest timer state
   const [timerSec, setTimerSec] = useState(0);
@@ -139,28 +85,12 @@ export default function WorkoutDetailScreen() {
     );
   }
 
-  const handleWatch = async () => {
+  const handleWatch = () => {
     setShowVideo(true);
-    if (!videoId) {
-      setVideoLoading(true);
-      setVideoError(false);
-      try {
-        const vid = await fetchVideoId(exercise.name);
-        if (vid) {
-          setVideoId(vid);
-        } else {
-          setVideoError(true);
-        }
-      } catch {
-        setVideoError(true);
-      } finally {
-        setVideoLoading(false);
-      }
-    }
   };
 
-  const videoEmbedUri = videoId
-    ? `https://www.youtube.com/embed/${videoId}?autoplay=1&modestbranding=1&rel=0`
+  const videoEmbedUri = exercise
+    ? getVideoEmbedUrl(exercise.name)
     : null;
 
   const difficultyColor = {
@@ -357,31 +287,14 @@ export default function WorkoutDetailScreen() {
             </View>
 
             <View style={styles.videoFrame}>
-              {videoLoading ? (
-                <View style={styles.videoPlaceholder}>
-                  <ActivityIndicator size="large" color={Colors.primary} />
-                  <Text style={styles.videoPlaceholderText}>Finding the best tutorial…</Text>
-                </View>
-              ) : videoError ? (
-                <View style={styles.videoPlaceholder}>
-                  <Text style={styles.videoErrorIcon}>😔</Text>
-                  <Text style={styles.videoErrorText}>Couldn't load video</Text>
-                  <TouchableOpacity style={styles.retryBtn} onPress={() => {
-                    setVideoId(null);
-                    setVideoError(false);
-                    handleWatch();
-                  }}>
-                    <Text style={styles.retryBtnText}>Try Again</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : videoEmbedUri ? (
+              {videoEmbedUri ? (
                 <VideoPlayer uri={videoEmbedUri} />
               ) : null}
             </View>
 
             <View style={styles.modalFooter}>
               <Text style={styles.modalFooterText}>
-                Auto-selected tutorial for "{exercise.name}" via YouTube
+                Showing YouTube tutorials for "{exercise.name}"
               </Text>
             </View>
           </View>
