@@ -13,13 +13,36 @@ function findExercise(id: string): Exercise | null {
   return EXERCISES[id] ?? null;
 }
 
-/** Fetch a YouTube video ID for an exercise using the YouTube Data API v3 */
-async function fetchVideoId(exerciseName: string): Promise<string | null> {
-  const q = encodeURIComponent(`${exerciseName} exercise how to form tutorial`);
+// Public Invidious instances — tried in order until one responds
+const INVIDIOUS_INSTANCES = [
+  'https://invidious.privacyredirect.com',
+  'https://inv.tux.pizza',
+  'https://invidious.nerdvpn.de',
+  'https://yt.cdaut.de',
+];
 
-  // ── 1. YouTube Data API v3 search (most reliable) ──────────────────────────
+/** Fetch a YouTube video ID for an exercise (no API key required) */
+async function fetchVideoId(exerciseName: string): Promise<string | null> {
+  const q = encodeURIComponent(`${exerciseName} exercise how to tutorial`);
+
+  // ── 1. Invidious public API — free, no key, proper CORS ──────────────────
+  for (const host of INVIDIOUS_INSTANCES) {
+    try {
+      const res = await fetch(
+        `${host}/api/v1/search?q=${q}&type=video&fields=videoId&page=1`,
+        { signal: AbortSignal.timeout(6000) },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const videoId = (data as { videoId?: string }[])?.[0]?.videoId;
+        if (videoId) return videoId;
+      }
+    } catch { /* try next instance */ }
+  }
+
+  // ── 2. YouTube Data API v3 (only if a real key is configured) ────────────
   const apiKey = process.env.EXPO_PUBLIC_YOUTUBE_API_KEY;
-  if (apiKey) {
+  if (apiKey && apiKey.length > 10 && !apiKey.endsWith('...')) {
     try {
       const res = await fetch(
         `https://www.googleapis.com/youtube/v3/search` +
@@ -34,24 +57,7 @@ async function fetchVideoId(exerciseName: string): Promise<string | null> {
     } catch { /* fall through */ }
   }
 
-  // ── 2. YouTube oEmbed trick — works without API key and without CORS ────────
-  // We use the YouTube search URL and read the canonical URL from oEmbed
-  try {
-    const searchUrl = `https://www.youtube.com/results?search_query=${q}`;
-    const oembed = await fetch(
-      `https://www.youtube.com/oembed?url=${encodeURIComponent(searchUrl)}&format=json`,
-      { signal: AbortSignal.timeout(6000) },
-    );
-    if (oembed.ok) {
-      const data = await oembed.json();
-      // oembed for search pages often returns the top result thumbnail url containing the video id
-      const thumbUrl: string = data?.thumbnail_url ?? '';
-      const m = thumbUrl.match(/\/vi\/([a-zA-Z0-9_-]{11})\//);
-      if (m?.[1]) return m[1];
-    }
-  } catch { /* fall through */ }
-
-  // ── 3. allorigins.win proxy fallback ────────────────────────────────────────
+  // ── 3. allorigins.win proxy — last resort ────────────────────────────────
   try {
     const ytUrl = `https://www.youtube.com/results?search_query=${q}`;
     const res = await fetch(
@@ -64,7 +70,7 @@ async function fetchVideoId(exerciseName: string): Promise<string | null> {
       const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
       if (match?.[1]) return match[1];
     }
-  } catch { /* fall through */ }
+  } catch { /* nothing worked */ }
 
   return null;
 }
