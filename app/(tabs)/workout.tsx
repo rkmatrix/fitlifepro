@@ -57,6 +57,7 @@ export default function WorkoutScreen() {
   const [showCalendar, setShowCalendar] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const didScrollRef = useRef(false);
+  const scrollOffsetRef = useRef(Math.max(0, TODAY_INDEX * (CELL_W + CELL_GAP) - SCREEN_WIDTH / 2 + CELL_W / 2));
 
   useEffect(() => {
     if (profile) loadLogs(profile.id, 90);
@@ -67,7 +68,9 @@ export default function WorkoutScreen() {
     if (!didScrollRef.current) {
       const offset = TODAY_INDEX * (CELL_W + CELL_GAP) - SCREEN_WIDTH / 2 + CELL_W / 2;
       setTimeout(() => {
-        scrollRef.current?.scrollTo({ x: Math.max(0, offset), animated: false });
+        const x = Math.max(0, offset);
+        scrollRef.current?.scrollTo({ x, animated: false });
+        scrollOffsetRef.current = x;
         didScrollRef.current = true;
       }, 100);
     }
@@ -93,16 +96,29 @@ export default function WorkoutScreen() {
 
   const handleScroll = useCallback((e: any) => {
     const offset = e.nativeEvent.contentOffset.x;
+    scrollOffsetRef.current = offset;
     setWeekLabel(weekLabelFromOffset(offset));
   }, []);
 
   const handleScrollEnd = useCallback((e: any) => {
     const offset = e.nativeEvent.contentOffset.x;
+    scrollOffsetRef.current = offset;
     const cellWidth = CELL_W + CELL_GAP;
     const centerIndex = Math.round((offset + SCREEN_WIDTH / 2) / cellWidth);
     const clamped = Math.max(0, Math.min(TOTAL_DAYS - 1, centerIndex));
     setSelectedDate(ALL_DATES[clamped]);
     setWeekLabel(weekLabelFromOffset(offset));
+  }, []);
+
+  const handleArrow = useCallback((dir: -1 | 1) => {
+    const cellWidth = CELL_W + CELL_GAP;
+    const newOffset = Math.max(0, scrollOffsetRef.current + dir * cellWidth);
+    scrollRef.current?.scrollTo({ x: newOffset, animated: true });
+    scrollOffsetRef.current = newOffset;
+    const centerIndex = Math.round((newOffset + SCREEN_WIDTH / 2) / cellWidth);
+    const clamped = Math.max(0, Math.min(TOTAL_DAYS - 1, centerIndex));
+    setSelectedDate(ALL_DATES[clamped]);
+    setWeekLabel(weekLabelFromOffset(newOffset));
   }, []);
 
   // Build calendar data from logs
@@ -143,9 +159,15 @@ export default function WorkoutScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Week range label */}
+        {/* Week range label with navigation arrows */}
         <View style={styles.weekLabelRow}>
+          <TouchableOpacity style={styles.arrowBtn} onPress={() => handleArrow(-1)}>
+            <Text style={styles.arrowText}>‹</Text>
+          </TouchableOpacity>
           <Text style={styles.weekRangeLabel}>{weekLabel}</Text>
+          <TouchableOpacity style={styles.arrowBtn} onPress={() => handleArrow(1)}>
+            <Text style={styles.arrowText}>›</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Scrollable date strip */}
@@ -333,8 +355,10 @@ const styles = StyleSheet.create({
   calendarBtnIcon: { fontSize: 16 },
   calendarBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary },
 
-  weekLabelRow: { paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs },
-  weekRangeLabel: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
+  weekLabelRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs, gap: Spacing.sm },
+  weekRangeLabel: { flex: 1, textAlign: 'center', fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },
+  arrowBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' },
+  arrowText: { fontSize: 22, color: Colors.primary, fontWeight: '700', lineHeight: 26, textAlign: 'center' },
 
   dayStrip: { flexGrow: 0 },
   dayStripContent: { paddingHorizontal: Spacing.md, gap: CELL_GAP, paddingBottom: Spacing.md },

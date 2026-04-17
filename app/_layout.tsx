@@ -36,7 +36,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: Platform.OS === 'web' ? '#0f0f1a' : undefined }}>
       {/* On web: center a phone-width column; on native: fill the screen */}
       <View style={Platform.OS === 'web'
-        ? { flex: 1, width: '100%', maxWidth: 430, alignSelf: 'center' as const, overflow: 'hidden' as any, boxShadow: '0 0 40px rgba(0,0,0,0.5)' } as any
+        ? { flex: 1, width: '100%', maxWidth: 680, alignSelf: 'center' as const, overflow: 'hidden' as any, boxShadow: '0 0 60px rgba(0,0,0,0.45)' } as any
         : { flex: 1 }
       }>
         <SafeAreaProvider>
