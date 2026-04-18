@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView,
+  View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Platform,
 } from 'react-native';
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays,
@@ -208,9 +208,11 @@ export function MonthCalendar({ data, onClose }: MonthCalendarProps) {
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
+      {/* On web: dark surround + constrain to same 680px column as the rest of the app */}
+      <View style={Platform.OS === 'web' ? { flex: 1, backgroundColor: '#0f0f1a' } : { flex: 1 }}>
+      <View style={[styles.container, Platform.OS === 'web' && { maxWidth: 680, alignSelf: 'center' as const, width: '100%' } as any]}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, Platform.OS === 'web' && { paddingTop: 16 } as any]}>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
@@ -283,6 +285,7 @@ export function MonthCalendar({ data, onClose }: MonthCalendarProps) {
 
         <Text style={styles.tapHint}>Tap any date to see the day summary</Text>
       </View>
+      </View>
 
       {/* Day detail popup — shown over the calendar */}
       {selectedDay && (
@@ -315,7 +318,7 @@ const styles = StyleSheet.create({
   weekLabel: { width: `${100 / 7}%`, textAlign: 'center', fontSize: FontSize.xs, fontWeight: '700', color: Colors.textTertiary },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 8, backgroundColor: Colors.surface, paddingBottom: Spacing.sm },
-  dayCell: { width: `${100 / 7}%`, aspectRatio: 1, justifyContent: 'center', alignItems: 'center', borderRadius: BorderRadius.sm },
+  dayCell: { width: `${100 / 7}%`, height: 48, justifyContent: 'center', alignItems: 'center', borderRadius: BorderRadius.sm },
   todayCell: { backgroundColor: `${Colors.primary}15` },
   selectedCell: { backgroundColor: Colors.primary },
   dayNum: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary },

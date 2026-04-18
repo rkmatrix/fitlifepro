@@ -35,10 +35,10 @@ function getWorkoutsForPhase(phase: number): WorkoutDay[] {
   return WORKOUT_PLAN.phases.find((p) => p.phase_number === phase)?.days ?? [];
 }
 
-/** Given a scroll offset, determine which week range is visible */
-function weekLabelFromOffset(offset: number): string {
+/** Given a scroll offset + the actual container width, determine which week range is visible */
+function weekLabelFromOffset(offset: number, containerW: number): string {
   const cellWidth = CELL_W + CELL_GAP;
-  const centerIndex = Math.round((offset + SCREEN_WIDTH / 2) / cellWidth);
+  const centerIndex = Math.round((offset + containerW / 2) / cellWidth);
   const clampedIndex = Math.max(0, Math.min(TOTAL_DAYS - 1, centerIndex));
   const centerDate = ALL_DATES[clampedIndex] ?? TODAY;
   const weekS = startOfWeek(centerDate, { weekStartsOn: 0 });
@@ -63,18 +63,15 @@ export default function WorkoutScreen() {
     if (profile) loadLogs(profile.id, 90);
   }, [profile]);
 
-  // Scroll to today on mount
+  // Scroll to today once the strip's actual width is known from onLayout
   useEffect(() => {
-    if (!didScrollRef.current) {
-      const offset = TODAY_INDEX * (CELL_W + CELL_GAP) - SCREEN_WIDTH / 2 + CELL_W / 2;
-      setTimeout(() => {
-        const x = Math.max(0, offset);
-        scrollRef.current?.scrollTo({ x, animated: false });
-        scrollOffsetRef.current = x;
-        didScrollRef.current = true;
-      }, 100);
-    }
-  }, []);
+    if (stripWidth <= 0 || didScrollRef.current) return;
+    const cellWidth = CELL_W + CELL_GAP;
+    const x = Math.max(0, TODAY_INDEX * cellWidth - stripWidth / 2 + CELL_W / 2);
+    scrollRef.current?.scrollTo({ x, animated: false });
+    setWeekLabel(weekLabelFromOffset(x, stripWidth));
+    didScrollRef.current = true;
+  }, [stripWidth]);
 
   const workouts = profile ? getWorkoutsForPhase(profile.phase) : [];
 
@@ -96,30 +93,31 @@ export default function WorkoutScreen() {
 
   const handleScroll = useCallback((e: any) => {
     const offset = e.nativeEvent.contentOffset.x;
-    scrollOffsetRef.current = offset;
-    setWeekLabel(weekLabelFromOffset(offset));
-  }, []);
+    const w = stripWidth > 0 ? stripWidth : SCREEN_WIDTH;
+    setWeekLabel(weekLabelFromOffset(offset, w));
+  }, [stripWidth]);
 
   const handleScrollEnd = useCallback((e: any) => {
     const offset = e.nativeEvent.contentOffset.x;
-    scrollOffsetRef.current = offset;
+    const w = stripWidth > 0 ? stripWidth : SCREEN_WIDTH;
     const cellWidth = CELL_W + CELL_GAP;
-    const centerIndex = Math.round((offset + SCREEN_WIDTH / 2) / cellWidth);
+    const centerIndex = Math.round((offset + w / 2) / cellWidth);
     const clamped = Math.max(0, Math.min(TOTAL_DAYS - 1, centerIndex));
+    selectedIndexRef.current = clamped;
     setSelectedDate(ALL_DATES[clamped]);
-    setWeekLabel(weekLabelFromOffset(offset));
-  }, []);
+    setWeekLabel(weekLabelFromOffset(offset, w));
+  }, [stripWidth]);
 
   const handleArrow = useCallback((dir: -1 | 1) => {
+    const newIdx = Math.max(0, Math.min(TOTAL_DAYS - 1, selectedIndexRef.current + dir));
+    selectedIndexRef.current = newIdx;
+    setSelectedDate(ALL_DATES[newIdx]);
+    const w = stripWidth > 0 ? stripWidth : SCREEN_WIDTH;
     const cellWidth = CELL_W + CELL_GAP;
-    const newOffset = Math.max(0, scrollOffsetRef.current + dir * cellWidth);
-    scrollRef.current?.scrollTo({ x: newOffset, animated: true });
-    scrollOffsetRef.current = newOffset;
-    const centerIndex = Math.round((newOffset + SCREEN_WIDTH / 2) / cellWidth);
-    const clamped = Math.max(0, Math.min(TOTAL_DAYS - 1, centerIndex));
-    setSelectedDate(ALL_DATES[clamped]);
-    setWeekLabel(weekLabelFromOffset(newOffset));
-  }, []);
+    const x = Math.max(0, newIdx * cellWidth - w / 2 + CELL_W / 2);
+    scrollRef.current?.scrollTo({ x, animated: true });
+    setWeekLabel(weekLabelFromOffset(x, w));
+  }, [stripWidth]);
 
   // Build calendar data from logs
   const calendarData: DayData[] = logs.map((log) => {
@@ -175,6 +173,7 @@ export default function WorkoutScreen() {
           ref={scrollRef}
           horizontal
           showsHorizontalScrollIndicator={false}
+          onLayout={(e) => { const w = e.nativeEvent.layout.width; if (w > 0) setStripWidth(w); }}
           style={styles.dayStrip}
           contentContainerStyle={styles.dayStripContent}
           onScroll={handleScroll}
