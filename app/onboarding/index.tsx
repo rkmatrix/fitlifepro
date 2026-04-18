@@ -7,8 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Colors, Spacing, FontSize, BorderRadius, Shadow } from '../../constants/theme';
 import { useUserStore } from '../../stores/userStore';
-import { requestNotificationPermission, scheduleDailyNotifications } from '../../engines/accountabilityEngine';
-import { requestCalendarPermission } from '../../lib/calendar';
 import { UserProfile } from '../../types';
 import { DEFAULT_CALORIE_TARGET } from '../../constants/config';
 import { sanitizeText } from '../../lib/security';
@@ -16,11 +14,8 @@ import { sanitizeText } from '../../lib/security';
 const { width } = Dimensions.get('window');
 
 const STEPS = [
-  { id: 'welcome',  title: 'Welcome to FitLife',     subtitle: 'Your journey to a leaner, stronger you starts today.' },
-  { id: 'profile',  title: 'Tell me about you',       subtitle: 'This helps me build your exact plan.' },
-  { id: 'goals',    title: 'Your goal weight',         subtitle: 'Be specific. Specific goals create real change.' },
-  { id: 'schedule', title: 'When do you train?',       subtitle: 'I will work around your life.' },
-  { id: 'permissions', title: 'Stay accountable',     subtitle: 'Enable these for the full FitLife experience.' },
+  { id: 'welcome', title: 'Welcome to FitLife',  subtitle: 'Your journey to a leaner, stronger you starts today.' },
+  { id: 'profile', title: 'Tell me about you',   subtitle: 'This helps me build your exact plan.' },
 ];
 
 export default function OnboardingScreen() {
@@ -34,10 +29,6 @@ export default function OnboardingScreen() {
   const [age, setAge] = useState('');
   const [heightCm, setHeightCm] = useState('');
   const [weightKg, setWeightKg] = useState('');
-  const [goalWeightKg, setGoalWeightKg] = useState('');
-  const [workoutTime, setWorkoutTime] = useState('07:00');
-  const [notifEnabled, setNotifEnabled] = useState(true);
-  const [calendarEnabled, setCalendarEnabled] = useState(true);
 
   const canAdvance = (): boolean => {
     if (step === 0) return true;
@@ -57,32 +48,23 @@ export default function OnboardingScreen() {
     setIsLoading(true);
     try {
       const safeName = sanitizeText(name.trim(), 100);
-
+      const w = parseFloat(weightKg) || 75;
       const profile: UserProfile = {
         id: `local_${Date.now()}`,
         email: '',
         name: safeName,
         age: parseInt(age) || 30,
         height_cm: parseFloat(heightCm) || 170,
-        weight_kg: parseFloat(weightKg) || 75,
-        goal_weight_kg: parseFloat(goalWeightKg) || 70,
+        weight_kg: w,
+        goal_weight_kg: Math.max(w - 5, 50),
         target_calories: DEFAULT_CALORIE_TARGET,
-        preferred_workout_time: workoutTime,
-        calendar_sync_enabled: calendarEnabled,
+        preferred_workout_time: '07:00',
+        calendar_sync_enabled: false,
         health_sync_enabled: false,
         phase: 1,
         week_number: 1,
         created_at: new Date().toISOString(),
       };
-
-      if (notifEnabled) {
-        await requestNotificationPermission();
-        await scheduleDailyNotifications(workoutTime, safeName);
-      }
-      if (calendarEnabled) {
-        await requestCalendarPermission();
-      }
-
       await setProfile(profile);
       router.replace('/(tabs)');
     } catch (e: any) {
@@ -168,70 +150,7 @@ export default function OnboardingScreen() {
             </View>
           )}
 
-          {/* Step 2: Goal weight */}
-          {step === 2 && (
-            <View style={styles.form}>
-              <Text style={styles.label}>Goal Weight (kg)</Text>
-              <TextInput style={styles.input} value={goalWeightKg} onChangeText={setGoalWeightKg} keyboardType="decimal-pad" placeholder="e.g. 72" placeholderTextColor={Colors.textTertiary} />
-              {goalWeightKg && weightKg && (
-                <View style={styles.bmiPreview}>
-                  <Text style={styles.bmiValue}>
-                    Target: lose {Math.max(0, parseFloat(weightKg) - parseFloat(goalWeightKg)).toFixed(1)} kg
-                  </Text>
-                  <Text style={styles.bmiLabel}>A realistic, healthy timeline is 24–26 weeks.</Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Step 3: Schedule */}
-          {step === 3 && (
-            <View style={styles.form}>
-              <Text style={styles.label}>Preferred Workout Time</Text>
-              <Text style={styles.sublabel}>When do you plan to train most days?</Text>
-              <View style={styles.timeGrid}>
-                {['05:30', '06:00', '06:30', '07:00', '07:30', '08:00', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30'].map((t) => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[styles.timeChip, workoutTime === t && styles.timeChipActive]}
-                    onPress={() => setWorkoutTime(t)}
-                  >
-                    <Text style={[styles.timeChipLabel, workoutTime === t && styles.timeChipLabelActive]}>{t}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={styles.scheduleNote}>
-                FitLife reads your calendar and adapts workouts around your meetings automatically.
-              </Text>
-            </View>
-          )}
-
-          {/* Step 4: Permissions */}
-          {step === 4 && (
-            <View style={styles.form}>
-              {[
-                { key: 'notifications', icon: '🔔', title: 'Push Notifications', desc: 'Workout reminders, accountability nudges, streak alerts.', enabled: notifEnabled, toggle: setNotifEnabled },
-                { key: 'calendar', icon: '📅', title: 'Calendar Access', desc: 'Reads your events to detect conflicts and adjust workouts.', enabled: calendarEnabled, toggle: setCalendarEnabled },
-              ].map((perm) => (
-                <TouchableOpacity
-                  key={perm.key}
-                  style={[styles.permRow, perm.enabled && styles.permRowEnabled]}
-                  onPress={() => perm.toggle(!perm.enabled)}
-                >
-                  <Text style={styles.permIcon}>{perm.icon}</Text>
-                  <View style={styles.permInfo}>
-                    <Text style={styles.permTitle}>{perm.title}</Text>
-                    <Text style={styles.permDesc}>{perm.desc}</Text>
-                  </View>
-                  <View style={[styles.toggle, perm.enabled && styles.toggleOn]}>
-                    <View style={[styles.toggleThumb, perm.enabled && styles.toggleThumbOn]} />
-                  </View>
-                </TouchableOpacity>
-              ))}
-              <Text style={styles.permNote}>You can change these anytime in Settings.</Text>
-              {error ? <Text style={styles.errorText}>{error}</Text> : null}
-            </View>
-          )}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </ScrollView>
 
         {/* Navigation */}

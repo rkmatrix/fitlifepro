@@ -13,7 +13,6 @@ import { useNutritionStore } from '../../stores/nutritionStore';
 import { useHealthStore } from '../../stores/healthStore';
 import { WORKOUT_PLAN } from '../../constants/workoutPlan';
 import { WorkoutDay, WorkoutLog } from '../../types';
-import { MonthCalendar, DayData } from '../../components/shared/MonthCalendar';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CELL_W = 60;
@@ -53,11 +52,15 @@ export default function WorkoutScreen() {
   const { todaySleep, todayHealth } = useHealthStore();
 
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [weekLabel, setWeekLabel] = useState(weekLabelFromOffset(TODAY_INDEX * (CELL_W + CELL_GAP)));
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [stripWidth, setStripWidth] = useState(0);
+  const [weekLabel, setWeekLabel] = useState(() => {
+    const weekS = startOfWeek(TODAY, { weekStartsOn: 0 });
+    const weekE = endOfWeek(TODAY, { weekStartsOn: 0 });
+    return `${format(weekS, 'MMM d')} \u2013 ${format(weekE, 'MMM d')}`;
+  });
   const scrollRef = useRef<ScrollView>(null);
   const didScrollRef = useRef(false);
-  const scrollOffsetRef = useRef(Math.max(0, TODAY_INDEX * (CELL_W + CELL_GAP) - SCREEN_WIDTH / 2 + CELL_W / 2));
+  const selectedIndexRef = useRef(TODAY_INDEX);
 
   useEffect(() => {
     if (profile) loadLogs(profile.id, 90);
@@ -151,10 +154,6 @@ export default function WorkoutScreen() {
             <Text style={styles.title}>Training</Text>
             {profile && <Text style={styles.subtitle}>Phase {profile.phase} · Week {profile.week_number}</Text>}
           </View>
-          <TouchableOpacity style={styles.calendarBtn} onPress={() => setShowCalendar(true)}>
-            <Text style={styles.calendarBtnIcon}>📅</Text>
-            <Text style={styles.calendarBtnText}>Calendar</Text>
-          </TouchableOpacity>
         </View>
 
         {/* Week range label with navigation arrows */}
@@ -336,10 +335,6 @@ export default function WorkoutScreen() {
 
         <View style={styles.bottomPad} />
       </ScrollView>
-
-      {showCalendar && (
-        <MonthCalendar data={calendarData} onClose={() => setShowCalendar(false)} />
-      )}
     </SafeAreaView>
   );
 }
@@ -350,9 +345,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.sm },
   title: { fontSize: FontSize.xxl, fontWeight: '800', color: Colors.textPrimary },
   subtitle: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '600', marginTop: 2 },
-  calendarBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, borderRadius: BorderRadius.full, paddingHorizontal: 14, paddingVertical: 8, borderWidth: 1, borderColor: Colors.border },
-  calendarBtnIcon: { fontSize: 16 },
-  calendarBtnText: { fontSize: FontSize.sm, fontWeight: '600', color: Colors.textPrimary },
+
 
   weekLabelRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingBottom: Spacing.xs, gap: Spacing.sm },
   weekRangeLabel: { flex: 1, textAlign: 'center', fontSize: FontSize.sm, fontWeight: '600', color: Colors.textSecondary },

@@ -6,7 +6,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
 import { useUserStore } from '../stores/userStore';
-import { requestNotificationPermission } from '../engines/accountabilityEngine';
 import { localDB } from '../lib/local-db';
 
 // Keep the splash visible until the profile check is done.
@@ -29,7 +28,6 @@ export default function RootLayout() {
     } else {
       loadProfile();
     }
-    requestNotificationPermission();
   }, [loadProfile]);
 
   return (
