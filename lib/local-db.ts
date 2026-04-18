@@ -87,16 +87,11 @@ export const localDB = {
       } catch { return null; }
     }
 
-    // Web: try localStorage cache first (instant), then cloud
+    // Web: localStorage is the source of truth — instant, no network
     try {
       const cached = localStorage.getItem(PREFIX + key);
       if (cached !== null) return JSON.parse(cached) as T;
     } catch { }
-    const remote = await cloudGet(key);
-    if (remote !== null) {
-      try { localStorage.setItem(PREFIX + key, JSON.stringify(remote)); } catch { }
-      return remote as T;
-    }
     return null;
   },
 
@@ -105,9 +100,10 @@ export const localDB = {
       try { await AsyncStorage.setItem(PREFIX + key, JSON.stringify(value)); } catch { }
       return;
     }
-    // Web: write to cache immediately, then persist to cloud
+    // Web: write to localStorage synchronously first (instant, reliable)
     try { localStorage.setItem(PREFIX + key, JSON.stringify(value)); } catch { }
-    await cloudSet(key, value);
+    // Cloud sync is fire-and-forget — never blocks the caller
+    cloudSet(key, value).catch(() => {});
   },
 
   remove: async (key: string): Promise<void> => {

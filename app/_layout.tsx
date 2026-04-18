@@ -22,9 +22,11 @@ export default function RootLayout() {
   }, [isLoading]);
 
   useEffect(() => {
-    // On web: pull cloud data into localStorage before loading profile
+    // Load from localStorage immediately — never block on cloud sync
     if (Platform.OS === 'web') {
-      localDB.syncFromCloud().then(() => loadProfile());
+      loadProfile();
+      // Background cloud sync: hydrate localStorage with any newer cloud data
+      localDB.syncFromCloud().catch(() => {});
     } else {
       loadProfile();
     }
