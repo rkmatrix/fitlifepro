@@ -1,4 +1,4 @@
-import { Exercise, WorkoutDay, WorkoutPhase, WorkoutPlan } from '../types';
+import { Exercise, WorkoutDay, WorkoutDayExercise, WorkoutPhase, WorkoutPlan } from '../types';
 
 // ─── Exercise Library ────────────────────────────────────────────────────────
 
@@ -601,6 +601,250 @@ export const EXERCISES: Record<string, Exercise> = {
     equipment: [],
     difficulty: 'beginner',
   },
+
+  // ── WARM-UP EXERCISES ──────────────────────────────────────────────────────
+  wu_jumping_jacks: {
+    id: 'wu_jumping_jacks',
+    name: 'Jumping Jacks',
+    muscle_group: 'cardio',
+    description: 'Full-body warm-up that elevates heart rate and loosens every joint.',
+    instructions: [
+      'Stand with feet together and arms at your sides',
+      'Jump feet out wide while swinging arms overhead',
+      'Jump back to starting position with control',
+      'Maintain a comfortable pace — this is warm-up, not max effort',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 45, rest_sec: 10,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=jumping+jacks+warmup+tutorial',
+    video_type: 'youtube',
+  },
+  wu_arm_circles: {
+    id: 'wu_arm_circles',
+    name: 'Arm Circles',
+    muscle_group: 'shoulders',
+    description: 'Mobilises the shoulder joint before upper-body work.',
+    instructions: [
+      'Stand with arms stretched straight out to the sides',
+      'Make small forward circles, gradually increasing the size',
+      'After 15 seconds, reverse direction',
+      'Keep shoulders down and neck relaxed',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 30, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=arm+circles+shoulder+warmup+exercise',
+    video_type: 'youtube',
+  },
+  wu_leg_swings: {
+    id: 'wu_leg_swings',
+    name: 'Leg Swings',
+    muscle_group: 'legs',
+    description: 'Dynamic hip-flexor and hamstring warm-up using pendulum momentum.',
+    instructions: [
+      'Hold a wall or stable surface for balance',
+      'Swing one leg forward and back in a controlled pendulum',
+      'Keep the movement smooth — momentum does the work',
+      'Switch legs halfway through',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 30, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=leg+swings+hip+flexor+warmup',
+    video_type: 'youtube',
+  },
+  wu_hip_circles: {
+    id: 'wu_hip_circles',
+    name: 'Hip Circles',
+    muscle_group: 'legs',
+    description: 'Opens the hip joint and improves range of motion for squats and lunges.',
+    instructions: [
+      'Stand with feet shoulder-width apart, hands on hips',
+      'Slowly rotate your hips in wide circles clockwise',
+      'Do 5 clockwise, then 5 counter-clockwise',
+      'Move slowly — feel the stretch at end range',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 30, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=hip+circles+mobility+warmup',
+    video_type: 'youtube',
+  },
+  wu_high_knees_march: {
+    id: 'wu_high_knees_march',
+    name: 'High Knee March',
+    muscle_group: 'cardio',
+    description: 'Low-impact cardiovascular activation for hips, core, and coordination.',
+    instructions: [
+      'Stand tall with good posture and a slight core brace',
+      'Lift one knee slowly to hip height, then alternate',
+      'Swing the opposite arm for balance',
+      'Gradually increase your pace over the 30 seconds',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 30, rest_sec: 5,
+    posture_support: true, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=high+knee+march+warmup+exercise',
+    video_type: 'youtube',
+  },
+  wu_torso_rotation: {
+    id: 'wu_torso_rotation',
+    name: 'Standing Torso Rotations',
+    muscle_group: 'core',
+    description: 'Thoracic spine mobility drill for safer rotational exercises.',
+    instructions: [
+      'Stand with feet shoulder-width apart, arms extended forward',
+      'Rotate your upper body to the right as far as comfortable',
+      'Return through centre then rotate left',
+      'Keep hips square — move the torso only',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 30, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=standing+torso+rotation+warmup+mobility',
+    video_type: 'youtube',
+  },
+  wu_wrist_ankle_circles: {
+    id: 'wu_wrist_ankle_circles',
+    name: 'Wrist & Ankle Circles',
+    muscle_group: 'core',
+    description: 'Mobilises the smaller joints often skipped in warm-up.',
+    instructions: [
+      'Extend one arm and rotate the wrist 10 times each direction',
+      'Lift one foot and rotate the ankle 10 times each direction',
+      'Repeat on the opposite side',
+      'Move with full range of motion, nice and slow',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 30, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=wrist+ankle+circles+warmup+mobility',
+    video_type: 'youtube',
+  },
+
+  // ── COOL-DOWN / STRETCH EXERCISES ─────────────────────────────────────────
+  cd_childs_pose: {
+    id: 'cd_childs_pose',
+    name: "Child's Pose",
+    muscle_group: 'yoga',
+    description: 'Calming full-back decompression and hip-flexor opener to close any session.',
+    instructions: [
+      'Kneel and sit hips back toward your heels',
+      'Reach arms forward on the floor, forehead resting down',
+      'Breathe deeply and let your back gently expand',
+      'Walk arms to one side for a lateral stretch, then the other',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 45, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=childs+pose+yoga+cooldown+stretch',
+    video_type: 'youtube',
+  },
+  cd_standing_quad_stretch: {
+    id: 'cd_standing_quad_stretch',
+    name: 'Standing Quad Stretch',
+    muscle_group: 'legs',
+    description: 'Lengthens the quadriceps and hip flexor after lower-body or full-body work.',
+    instructions: [
+      'Stand on one leg; hold a wall for balance if needed',
+      'Bend the other knee and hold your foot behind you',
+      'Keep knees together and stand tall',
+      'Hold 20 seconds, then switch sides',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 45, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=standing+quad+stretch+cooldown',
+    video_type: 'youtube',
+  },
+  cd_hamstring_stretch: {
+    id: 'cd_hamstring_stretch',
+    name: 'Seated Hamstring Stretch',
+    muscle_group: 'legs',
+    description: 'Relieves hamstring tension after squats, lunges, and running.',
+    instructions: [
+      'Sit on the floor with one leg straight in front',
+      'Bend the other leg so the foot rests against the inner thigh',
+      'Hinge at the hips and reach forward along the straight leg',
+      'Keep your back flat — do not round the spine. 20 s each side',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 45, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=seated+hamstring+stretch+cooldown',
+    video_type: 'youtube',
+  },
+  cd_chest_stretch: {
+    id: 'cd_chest_stretch',
+    name: 'Doorway Chest Stretch',
+    muscle_group: 'chest',
+    description: 'Counters anterior shoulder rounding after push and bench work.',
+    instructions: [
+      'Stand in a doorway, place forearms on each side of the frame',
+      'Step one foot forward and gently lean through the doorway',
+      'Feel the stretch across your chest and front shoulders',
+      'Breathe into the stretch — hold without bouncing',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 30, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=doorway+chest+stretch+cooldown+pec',
+    video_type: 'youtube',
+  },
+  cd_shoulder_stretch: {
+    id: 'cd_shoulder_stretch',
+    name: 'Cross-Body Shoulder Stretch',
+    muscle_group: 'shoulders',
+    description: 'Releases the rear deltoid and rotator cuff after pulling work.',
+    instructions: [
+      'Bring one arm straight across your chest at shoulder height',
+      'Use the opposite forearm to press it gently toward you',
+      'Keep your shoulder down — do not shrug',
+      'Hold 20 seconds, then switch arms',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 40, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=cross+body+shoulder+stretch+cooldown',
+    video_type: 'youtube',
+  },
+  cd_spinal_twist: {
+    id: 'cd_spinal_twist',
+    name: 'Supine Spinal Twist',
+    muscle_group: 'core',
+    description: 'Decompresses the spine and stretches the IT band, glutes, and obliques.',
+    instructions: [
+      'Lie on your back with knees bent, feet flat on the floor',
+      'Drop both knees to one side and look the opposite way',
+      'Keep both shoulders flat on the ground',
+      'Hold 20 seconds, then switch sides',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 45, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=supine+spinal+twist+stretch+cooldown',
+    video_type: 'youtube',
+  },
+  cd_cat_cow: {
+    id: 'cd_cat_cow',
+    name: 'Cat-Cow Stretch',
+    muscle_group: 'core',
+    description: 'Gentle spinal mobilisation to wind down the nervous system.',
+    instructions: [
+      'Start on hands and knees — wrists under shoulders, knees under hips',
+      'Inhale: drop belly, lift chest and tailbone (Cow)',
+      'Exhale: round spine toward ceiling, tuck chin and tailbone (Cat)',
+      'Move slowly with your breath for 8–10 full cycles',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 45, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=cat+cow+stretch+yoga+cooldown',
+    video_type: 'youtube',
+  },
+  cd_neck_stretch: {
+    id: 'cd_neck_stretch',
+    name: 'Neck Side Stretch',
+    muscle_group: 'shoulders',
+    description: 'Releases upper-trapezius and neck tension built up during any workout.',
+    instructions: [
+      'Sit or stand tall with relaxed shoulders',
+      'Tilt your right ear slowly toward your right shoulder',
+      'Optionally, rest your right hand gently on your head for a deeper stretch',
+      'Hold 20 seconds, then switch to the left side',
+    ],
+    default_sets: 1, default_reps: 1, default_duration_sec: 40, rest_sec: 5,
+    posture_support: false, equipment: [], difficulty: 'beginner',
+    video_url: 'https://www.youtube.com/results?search_query=neck+side+stretch+cooldown+trapezius',
+    video_type: 'youtube',
+  },
 };
 
 // ─── Phase 1 Workout Days (Weeks 1–4) ────────────────────────────────────────
@@ -876,6 +1120,31 @@ export const WORKOUT_PLAN: WorkoutPlan = {
     },
   ],
 };
+
+// ─── Warm-Up Sequence (used before every workout session) ────────────────────
+
+export const WARMUP_EXERCISES: WorkoutDayExercise[] = [
+  { exercise: EXERCISES.wu_jumping_jacks,    sets: 1, reps: 1, duration_sec: 45, rest_sec: 10, order: 1 },
+  { exercise: EXERCISES.wu_arm_circles,       sets: 1, reps: 1, duration_sec: 30, rest_sec:  5, order: 2 },
+  { exercise: EXERCISES.wu_leg_swings,        sets: 1, reps: 1, duration_sec: 30, rest_sec:  5, order: 3 },
+  { exercise: EXERCISES.wu_hip_circles,       sets: 1, reps: 1, duration_sec: 30, rest_sec:  5, order: 4 },
+  { exercise: EXERCISES.wu_high_knees_march,  sets: 1, reps: 1, duration_sec: 30, rest_sec:  5, order: 5 },
+  { exercise: EXERCISES.wu_torso_rotation,    sets: 1, reps: 1, duration_sec: 30, rest_sec:  5, order: 6 },
+  { exercise: EXERCISES.wu_wrist_ankle_circles, sets: 1, reps: 1, duration_sec: 30, rest_sec: 5, order: 7 },
+];
+
+// ─── Cool-Down & Stretch Sequence (used after every workout session) ──────────
+
+export const COOLDOWN_EXERCISES: WorkoutDayExercise[] = [
+  { exercise: EXERCISES.cd_childs_pose,             sets: 1, reps: 1, duration_sec: 45, rest_sec: 5, order: 1 },
+  { exercise: EXERCISES.cd_standing_quad_stretch,   sets: 1, reps: 1, duration_sec: 45, rest_sec: 5, order: 2 },
+  { exercise: EXERCISES.cd_hamstring_stretch,        sets: 1, reps: 1, duration_sec: 45, rest_sec: 5, order: 3 },
+  { exercise: EXERCISES.cd_chest_stretch,            sets: 1, reps: 1, duration_sec: 30, rest_sec: 5, order: 4 },
+  { exercise: EXERCISES.cd_shoulder_stretch,         sets: 1, reps: 1, duration_sec: 40, rest_sec: 5, order: 5 },
+  { exercise: EXERCISES.cd_spinal_twist,             sets: 1, reps: 1, duration_sec: 45, rest_sec: 5, order: 6 },
+  { exercise: EXERCISES.cd_cat_cow,                  sets: 1, reps: 1, duration_sec: 45, rest_sec: 5, order: 7 },
+  { exercise: EXERCISES.cd_neck_stretch,             sets: 1, reps: 1, duration_sec: 40, rest_sec: 5, order: 8 },
+];
 
 // ─── Trainer Discipline Code ──────────────────────────────────────────────────
 
